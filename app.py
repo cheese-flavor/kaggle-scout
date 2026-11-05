@@ -1,0 +1,805 @@
+import copy
+import html
+import json
+import os
+from pathlib import Path
+import sys
+from datetime import timedelta
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QLockFile, QUrl
+from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
+    QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
+    QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
+    QFileDialog, QSystemTrayIcon, QMenu, QSplitter)
+from core import Store, Kaggle, DEFAULT, TOPICS, assess, now, date, display_date, plain, slug
+
+ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
+ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
+STYLE = '''
+* { font-family: "Noto Sans KR", "Malgun Gothic"; font-size: 13px; color: #203146; }
+QMainWindow, QDialog { background: #f5f8fc; }
+QWidget#sidebar { background: #ffffff; border-right: 1px solid #e3ebf3; }
+QFrame#card { background: #ffffff; border: 1px solid #e2eaf2; border-radius: 14px; }
+QFrame#hero { background: #e9f8ff; border: 1px solid #c5edff; border-radius: 16px; }
+QLabel { background: transparent; border: none; }
+QLabel#muted { color: #6c7d90; }
+QLabel#eyebrow { color: #0286b5; font-size: 11px; font-weight: 700; }
+QLabel#heading { font-size: 26px; font-weight: 700; color: #152b42; }
+QLabel#title { font-size: 17px; font-weight: 700; }
+QPushButton { background: white; border: 1px solid #dbe5ee; border-radius: 8px; padding: 10px 16px; font-weight: 600; }
+QPushButton:hover { background: #eef8fd; border-color: #9edff9; }
+QPushButton:pressed { background: #d3f0fc; }
+QPushButton:disabled { color: #9daab6; background: #edf2f7; }
+QPushButton#primary { background: #20beff; color: #10374b; border-color: #20beff; }
+QPushButton#primary:hover { background: #60d0ff; }
+QPushButton#nav { text-align: left; border: none; background: transparent; padding: 13px 16px; color: #63758a; }
+QPushButton#nav:checked { background: #e8f8ff; color: #027eab; }
+QLineEdit, QComboBox, QSpinBox { background: #ffffff; border: 1px solid #d9e4ee; border-radius: 8px; padding: 10px; min-height: 18px; }
+QLineEdit:focus, QSpinBox:focus { border: 1px solid #20beff; }
+QCheckBox { spacing: 10px; padding: 5px; }
+QCheckBox::indicator { width: 17px; height: 17px; }
+QScrollArea { border: none; background: transparent; }
+QScrollArea > QWidget > QWidget { background: transparent; }
+QTextBrowser { background: #ffffff; border: none; padding: 12px; }
+QScrollBar:vertical { background: transparent; width: 8px; margin: 3px; }
+QScrollBar::handle:vertical { background: #c8d8e5; min-height: 30px; border-radius: 3px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+'''
+
+def label(text, kind=None, wrap=False):
+    w = QLabel(text)
+    if kind:
+        w.setObjectName(kind)
+    w.setWordWrap(wrap)
+    return w
+
+def button(text, fn, primary=False):
+    b = QPushButton(text)
+    if primary:
+        b.setObjectName('primary')
+    b.clicked.connect(fn)
+    return b
+
+def card(hero=False):
+    w = QFrame()
+    w.setObjectName('hero' if hero else 'card')
+    box = QVBoxLayout(w)
+    box.setContentsMargins(22, 20, 22, 20)
+    box.setSpacing(12)
+    return w, box
+
+def clear(layout):
+    while layout.count():
+        entry = layout.takeAt(0)
+        if entry.widget():
+            entry.widget().deleteLater()
+        elif entry.layout():
+            clear(entry.layout())
+
+class Job(QThread):
+    done = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, fn, parent=None):
+        super().__init__(parent)
+        self.fn = fn
+
+    def run(self):
+        try:
+            self.done.emit(self.fn())
+        except Exception as e:
+            # Never surface raw HTTP bodies, headers, or credentials.
+            text = str(e) if isinstance(e, RuntimeError) else '처리 중 오류가 발생했습니다. 연결과 저장 폴더를 확인하세요.'
+            self.failed.emit(text)
+
+class Connect(QDialog):
+    def __init__(self, store, parent):
+        super().__init__(parent)
+        self.store, self.job = store, None
+        self.setWindowTitle('Kaggle Scout · 계정 연결')
+        self.setMinimumWidth(580)
+        box = QVBoxLayout(self)
+        box.setContentsMargins(32, 32, 32, 32)
+        box.setSpacing(16)
+        box.addWidget(label('01  CONNECT YOUR KAGGLE', 'eyebrow'))
+        box.addWidget(label('나의 다음 도전을 연결하세요', 'heading'))
+        box.addWidget(label('Kaggle 개인 API 토큰으로 대회를 확인합니다.\nAI 모델 API가 아니며, 유료 AI 서비스를 호출하지 않습니다.', 'muted', True))
+        panel, fields = card()
+        fields.addWidget(label('Kaggle 개인 API 토큰', 'title'))
+        self.token = QLineEdit()
+        self.token.setPlaceholderText('Kaggle 설정에서 생성한 API token')
+        self.token.setEchoMode(QLineEdit.EchoMode.Password)
+        fields.addWidget(self.token)
+        fields.addWidget(button('Kaggle API 설정 열기 ↗', lambda: QDesktopServices.openUrl(QUrl('https://www.kaggle.com/settings/api'))))
+        fields.addWidget(button('기존 kaggle.json 파일로 연결', self.import_legacy))
+        box.addWidget(panel)
+        box.addWidget(label('인증 정보는 Windows 현재 계정으로 암호화하여 이 앱의 data 폴더에 저장합니다.\n다른 PC에서는 다시 연결합니다. 비밀번호나 토큰을 채팅에 보낼 필요가 없습니다.', 'muted', True))
+        self.status = label('연결을 확인한 다음 프로필 설정으로 이동합니다.', 'muted', True)
+        box.addWidget(self.status)
+        self.submit = button('연결 확인하고 시작하기 →', self.connect_token, True)
+        box.addWidget(self.submit)
+        self.credentials = None
+
+    def import_legacy(self):
+        path, _ = QFileDialog.getOpenFileName(self, 'kaggle.json 선택', '', 'JSON (*.json)')
+        if not path:
+            return
+        try:
+            value = json.loads(Path(path).read_text(encoding='utf-8-sig'))
+            if not isinstance(value, dict) or not value.get('username') or not value.get('key'):
+                raise ValueError()
+            self.verify({'username': value['username'], 'key': value['key']})
+        except (ValueError, OSError):
+            self.status.setText('username과 key가 들어 있는 Kaggle 인증 JSON을 선택하세요.')
+
+    def connect_token(self):
+        value = self.token.text().strip()
+        if not value:
+            self.status.setText('개인 API 토큰을 입력하거나 kaggle.json을 선택하세요.')
+            return
+        self.verify({'token': value})
+
+    def verify(self, credentials):
+        if self.job and self.job.isRunning():
+            return
+        self.submit.setEnabled(False)
+        self.status.setText('Kaggle 연결 확인 중…')
+        self.job = Job(lambda: Kaggle(credentials).call('ListCompetitions', {'pageSize': 1}), self)
+        def success(_):
+            try:
+                self.store.save_credentials(credentials)
+                self.credentials = credentials
+                self.token.clear()
+                self.accept()
+            except RuntimeError as e:
+                fail(str(e))
+        def fail(text):
+            self.status.setText(text)
+            self.submit.setEnabled(True)
+        self.job.done.connect(success)
+        self.job.failed.connect(fail)
+        self.job.start()
+
+    def reject(self):
+        if self.job and self.job.isRunning():
+            self.status.setText('연결 확인이 끝나면 창을 닫을 수 있습니다.')
+            return
+        super().reject()
+
+class Window(QMainWindow):
+    def __init__(self, store, preview=False):
+        super().__init__()
+        self.store, self.preview = store, preview
+        self.credentials = None
+        self.job = None
+        self.mode = 0
+        self.selected = None
+        self.next_due = now()
+        self.quitting = False
+        self.await_profile = False
+        self.setWindowTitle('Kaggle Scout' + (' · 디자인 미리보기 / 가상 데이터' if preview else ''))
+        self.setMinimumSize(1100, 800)
+        self.resize(1380, 900)
+        self.setWindowIcon(QIcon(str(ASSETS / 'scout.ico')))
+        shell = QWidget()
+        self.setCentralWidget(shell)
+        root = QHBoxLayout(shell)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        sidebar = QWidget()
+        sidebar.setObjectName('sidebar')
+        sidebar.setFixedWidth(220)
+        side = QVBoxLayout(sidebar)
+        side.setContentsMargins(20, 30, 20, 24)
+        side.setSpacing(10)
+        mark = QLabel()
+        mark.setPixmap(QIcon(str(ASSETS / 'scout.ico')).pixmap(48, 48))
+        side.addWidget(mark)
+        side.addWidget(label('Kaggle Scout', 'title'))
+        side.addWidget(label('FIND YOUR NEXT CHALLENGE', 'eyebrow'))
+        side.addSpacing(30)
+        self.nav = []
+        for i, text in enumerate(['◈   대회 탐색', '☆   관심 대회', '◷   알림 기록', '⚙   나의 설정']):
+            b = button(text, lambda checked=False, index=i: self.navigate(index))
+            b.setObjectName('nav')
+            b.setCheckable(True)
+            self.nav.append(b)
+            side.addWidget(b)
+        side.addStretch()
+        status_card, sc = card()
+        sc.addWidget(label('MY WORKSPACE', 'eyebrow'))
+        self.profile_summary = label('', 'muted', True)
+        sc.addWidget(self.profile_summary)
+        side.addWidget(status_card)
+        side.addWidget(label('개인용 · AI API 사용 없음\nKaggle 비공식 독립 앱', 'muted', True))
+        root.addWidget(sidebar)
+        self.pages = QStackedWidget()
+        root.addWidget(self.pages, 1)
+        self.build_discovery()
+        self.build_events()
+        self.build_settings()
+        self.setup_tray()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.tick)
+        self.timer.start(15000)
+        self.navigate(0)
+        if not preview:
+            QTimer.singleShot(350, self.startup)
+
+    def setup_tray(self):
+        self.tray = QSystemTrayIcon(self.windowIcon(), self)
+        self.tray.setToolTip('Kaggle Scout · 대회 모니터')
+        menu = QMenu()
+        menu.addAction('Kaggle Scout 열기', self.show_app)
+        menu.addAction('지금 확인', self.refresh)
+        menu.addSeparator()
+        menu.addAction('완전히 종료', self.quit_app)
+        self.tray.setContextMenu(menu)
+        self.tray.activated.connect(lambda reason: self.show_app() if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
+        self.tray.messageClicked.connect(self.show_app)
+        if QSystemTrayIcon.isSystemTrayAvailable() and not self.preview:
+            self.tray.show()
+
+    def show_app(self):
+        if hasattr(self, 'notice_ref') and self.notice_ref:
+            ref = self.notice_ref
+            self.navigate(0)
+            self.select(ref)
+            self.notice_ref = None
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def closeEvent(self, event):
+        if not self.quitting and self.tray.isVisible():
+            self.hide()
+            event.ignore()
+            if not self.store.get('tray_explained'):
+                self.tray.showMessage('Kaggle Scout', '트레이에서 계속 확인합니다. 트레이 메뉴에서 완전히 종료할 수 있습니다.')
+                self.store.set('tray_explained', True)
+        elif self.job and self.job.isRunning():
+            event.ignore()
+            self.status.setText('현재 요청을 마친 뒤 종료할 수 있습니다.')
+            self.quitting = False
+        else:
+            event.accept()
+
+    def quit_app(self):
+        self.quitting = True
+        if self.close():
+            self.tray.hide()
+            QApplication.quit()
+
+    def startup(self):
+        try:
+            self.credentials = self.store.credentials()
+        except RuntimeError:
+            self.credentials = None
+        if not self.credentials:
+            self.connect_account(first=True)
+        else:
+            self.refresh()
+
+    def connect_account(self, first=False):
+        dlg = Connect(self.store, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.credentials = dlg.credentials
+            self.connection_label.setText('Kaggle 연결됨 · Windows 암호화 저장')
+            if first:
+                self.await_profile = True
+                self.navigate(3)
+                self.status.setText('기본 프로필을 확인하고 저장하면 첫 수집을 시작합니다.')
+            else:
+                self.refresh()
+        elif not self.credentials:
+            self.status.setText('연결 대기 · 나의 설정에서 Kaggle을 연결하세요.')
+
+    def navigate(self, index):
+        self.mode = index
+        for i, b in enumerate(self.nav):
+            b.setChecked(i == index)
+        self.pages.setCurrentIndex(0 if index <= 1 else index - 1)
+        if index <= 1:
+            self.heading.setText('관심 대회' if index == 1 else '나의 다음 도전 찾기')
+            self.render()
+        elif index == 2:
+            self.render_events()
+
+    def build_discovery(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(30, 28, 30, 20)
+        layout.setSpacing(18)
+        top = QHBoxLayout()
+        titlebox = QVBoxLayout()
+        titlebox.addWidget(label('DISCOVER / PERSONALIZED FOR YOU', 'eyebrow'))
+        self.heading = label('나의 다음 도전 찾기', 'heading')
+        titlebox.addWidget(self.heading)
+        top.addLayout(titlebox)
+        top.addStretch()
+        self.refresh_button = button('↻  지금 확인', self.refresh, True)
+        top.addWidget(self.refresh_button)
+        layout.addLayout(top)
+        hero, h = card(True)
+        h.addWidget(label('관심 분야는 넓게, 다음 도전은 나답게.', 'title'))
+        self.hero_text = label('', 'muted', True)
+        h.addWidget(self.hero_text)
+        layout.addWidget(hero)
+        self.stats = label('', 'muted')
+        layout.addWidget(self.stats)
+        filters = QHBoxLayout()
+        self.search = QLineEdit()
+        self.search.setPlaceholderText('대회명, 주제, 설명 검색…')
+        self.search.textChanged.connect(self.render)
+        filters.addWidget(self.search, 1)
+        self.topic = QComboBox()
+        self.topic.addItems(['모든 분야'] + list(TOPICS))
+        self.topic.currentTextChanged.connect(self.render)
+        filters.addWidget(self.topic)
+        self.sort = QComboBox()
+        self.sort.addItems(['추천 순', '마감 임박 순', '최근 발견 순'])
+        self.sort.currentTextChanged.connect(self.render)
+        filters.addWidget(self.sort)
+        layout.addLayout(filters)
+        switches = QHBoxLayout()
+        self.show_excluded = QCheckBox('제외·마감 대회 표시')
+        self.show_hidden = QCheckBox('숨긴 대회 표시')
+        self.show_excluded.toggled.connect(self.render)
+        self.show_hidden.toggled.connect(self.render)
+        switches.addWidget(self.show_excluded)
+        switches.addWidget(self.show_hidden)
+        switches.addStretch()
+        layout.addLayout(switches)
+        split = QSplitter(Qt.Orientation.Horizontal)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        contents = QWidget()
+        self.cards = QVBoxLayout(contents)
+        self.cards.setContentsMargins(0, 0, 8, 0)
+        self.cards.setSpacing(12)
+        scroll.setWidget(contents)
+        split.addWidget(scroll)
+        detail, d = card()
+        detail.setMinimumWidth(350)
+        d.addWidget(label('CHALLENGE BRIEF', 'eyebrow'))
+        self.detail = QTextBrowser()
+        self.detail.setMinimumHeight(150)
+        self.detail.setOpenExternalLinks(False)
+        d.addWidget(self.detail, 1)
+        actions = QHBoxLayout()
+        actions.addWidget(button('☆ 관심', self.star))
+        actions.addWidget(button('숨기기 / 복원', self.hide_item))
+        d.addLayout(actions)
+        d.addWidget(button('규칙·설명 추가 조회', self.load_pages))
+        d.addWidget(button('Kaggle 원문 열기 ↗', self.open_selected, True))
+        split.addWidget(detail)
+        split.setSizes([600, 370])
+        layout.addWidget(split, 1)
+        self.status = label('Kaggle 연결을 기다리고 있습니다.', 'muted', True)
+        layout.addWidget(self.status)
+        self.pages.addWidget(page)
+
+    def render(self, *_):
+        if not hasattr(self, 'cards'):
+            return
+        profile = self.store.profile()
+        self.profile_summary.setText(f"{profile['gpu']} · {profile['vram']}GB\n{profile['skills']}\n유료 API {'허용' if profile['paid_api'] else '없음'}")
+        self.hero_text.setText(f"{len(profile['topics'])}개 관심 분야 · {profile['gpu']} {profile['vram']}GB · {profile['interval']}분마다 확인\n추천은 키워드 기반 탐색 점수입니다. 참가 자격과 실행 자원은 대회 규칙에서 최종 확인하세요.")
+        rows = self.store.rows()
+        results = []
+        query = self.search.text().lower().strip()
+        for row in rows:
+            item = json.loads(row['body'])
+            verdict = assess(item, profile)
+            row['item'], row['verdict'] = item, verdict
+            if self.mode == 1 and not row['starred']:
+                continue
+            if row['hidden'] and not self.show_hidden.isChecked():
+                continue
+            if verdict['excluded'] and not self.show_excluded.isChecked():
+                continue
+            if verdict['score'] < profile['min_score']:
+                continue
+            if query and query not in plain(json.dumps(item, ensure_ascii=False)).lower():
+                continue
+            if self.topic.currentIndex() and self.topic.currentText() not in verdict['topics']:
+                continue
+            results.append(row)
+        if self.sort.currentIndex() == 1:
+            results.sort(key=lambda r: date(r['item'].get('deadline')) or now() + timedelta(days=99999))
+        elif self.sort.currentIndex() == 2:
+            results.sort(key=lambda r: r['first_seen'], reverse=True)
+        else:
+            results.sort(key=lambda r: (-r['verdict']['score'], r['item'].get('deadline', '9999')))
+        self.stats.setText(f"표시 {len(results)}개    /    저장된 대회 {len(rows)}개    /    관심 {sum(r['starred'] for r in rows)}개" + ('    ·    가상 데이터 미리보기' if self.preview else ''))
+        clear(self.cards)
+        if not results:
+            panel, p = card()
+            p.addWidget(label('새로운 도전을 기다리는 중', 'title'))
+            p.addWidget(label('계정을 연결하고 지금 확인을 눌러주세요.\n연결 후에도 목록이 비면 검색어와 제외 조건을 확인하세요.', 'muted', True))
+            p.addWidget(button('Kaggle 연결 설정', lambda: self.navigate(3)))
+            self.cards.addWidget(panel)
+        for row in results:
+            item, v = row['item'], row['verdict']
+            panel, p = card()
+            panel.setMinimumHeight(220)
+            p.addWidget(label(('★  ' if row['starred'] else '') + item.get('title', row['ref']), 'title', True))
+            p.addWidget(label('  ·  '.join(v['topics']) or '분야 미분류', 'eyebrow', True))
+            desc = plain(item.get('description', ''))
+            p.addWidget(label(desc[:180] + ('…' if len(desc) > 180 else ''), 'muted', True))
+            p.addWidget(label('제출 마감  ' + display_date(item.get('deadline')), 'muted'))
+            line = QHBoxLayout()
+            line.addWidget(label(f"탐색 점수 {v['score']}  ·  {item.get('reward') or '보상 정보 없음'}", 'muted'))
+            line.addStretch()
+            line.addWidget(button('자세히 →', lambda checked=False, ref=row['ref']: self.select(ref)))
+            p.addLayout(line)
+            if v['excluded']:
+                p.addWidget(label(' / '.join(v['excluded']), 'muted', True))
+            self.cards.addWidget(panel)
+        self.cards.addStretch()
+        visible = {r['ref'] for r in results}
+        if self.selected not in visible:
+            self.selected = results[0]['ref'] if results else None
+        self.select(self.selected)
+
+    def selected_row(self):
+        return next((r for r in self.store.rows() if r['ref'] == self.selected), None)
+
+    def select(self, ref):
+        self.selected = ref
+        row = self.selected_row()
+        if not row:
+            self.detail.setHtml('<h2>대회 상세 정보</h2><p>대회를 선택하면 일정과 추천 이유를 확인할 수 있습니다.</p>')
+            return
+        item = json.loads(row['body'])
+        v = assess(item, self.store.profile())
+        esc = lambda x: html.escape(str(x or '확인 필요'))
+        pairs = [('시작', display_date(item.get('enabledDate'))),
+                 ('신규 참가 마감', display_date(item.get('newEntrantDeadline'))),
+                 ('팀 구성 마감', display_date(item.get('mergerDeadline'))),
+                 ('최종 제출 마감', display_date(item.get('deadline'))),
+                 ('평가 지표', item.get('evaluationMetric')),
+                 ('제출 방식', 'Kaggle Notebook 코드 제출' if item.get('isKernelsSubmissionsOnly') else '목록 API에 코드 전용 제한 없음 · 규칙 확인'),
+                 ('최대 팀 인원', item.get('maxTeamSize')), ('보상', item.get('reward')),
+                 ('참여 팀', item.get('teamCount')), ('마지막 확인', display_date(row['last_seen']))]
+        body = '<h2>' + esc(item.get('title')) + '</h2><p>' + esc(plain(item.get('description'))) + '</p>'
+        body += '<h3>일정과 주요 정보</h3>' + ''.join(f'<p><b>{k}</b><br>{esc(value)}</p>' for k, value in pairs)
+        body += '<h3>추천 이유</h3><p>' + '<br>'.join(esc(x) for x in v['reasons']) + '</p>'
+        body += '<h3>내 환경에서 확인할 사항</h3><p>' + '<br><br>'.join(esc(v[k]) for k in ('eligibility', 'gpu', 'api')) + '</p>'
+        if v['excluded']:
+            body += '<h3>현재 제외 이유</h3><p>' + '<br>'.join(esc(x) for x in v['excluded']) + '</p>'
+        if item.get('pages'):
+            body += '<h3>추가 조회한 원문</h3><p>' + esc(plain(item['pages'])).replace('\n', '<br>') + '</p>'
+        body += '<p style="color:#6c7d90">설명·규칙이 변경될 수 있습니다. 확정되지 않은 조건은 확인 필요로 표시합니다.</p>'
+        self.detail.setHtml(body)
+
+    def star(self):
+        row = self.selected_row()
+        if row:
+            self.store.flag(row['ref'], 'starred', not row['starred'])
+            self.render()
+
+    def hide_item(self):
+        row = self.selected_row()
+        if row:
+            self.store.flag(row['ref'], 'hidden', not row['hidden'])
+            self.render()
+
+    def open_selected(self):
+        if self.selected:
+            QDesktopServices.openUrl(QUrl('https://www.kaggle.com/competitions/' + self.selected))
+
+    def busy(self):
+        return self.job and self.job.isRunning()
+
+    def refresh(self):
+        if self.preview:
+            self.status.setText('디자인 미리보기: 네트워크 수집은 실행하지 않습니다.')
+            return
+        if self.busy():
+            return
+        if not self.credentials:
+            self.connect_account()
+            return
+        self.refresh_button.setEnabled(False)
+        self.status.setText('Kaggle 대회 목록을 확인하고 있습니다…')
+        profile = copy.deepcopy(self.store.profile())
+        def task():
+            items = Kaggle(self.credentials).collect()
+            # Preserve previously fetched rules when the list API omits them.
+            previous = {r['ref']: json.loads(r['body']) for r in self.store.rows()}
+            for item in items:
+                old = previous.get(slug(item), {})
+                if old.get('pages'):
+                    item['pages'] = old['pages']
+            first, notices = self.store.sync(items, profile)
+            self.store.set('last_success', now().isoformat())
+            self.store.set('last_error', '')
+            return len(items), first, notices
+        self.job = Job(task, self)
+        self.job.done.connect(self.refreshed)
+        self.job.failed.connect(self.failed)
+        self.job.start()
+
+    def refreshed(self, result):
+        count, first, notices = result
+        self.refresh_button.setEnabled(True)
+        self.next_due = now() + timedelta(minutes=self.store.profile()['interval'])
+        self.status.setText(f"마지막 성공 {display_date(self.store.get('last_success'))} · {count}개 확인 · 다음 확인 {display_date(self.next_due.isoformat())}")
+        self.render()
+        if first:
+            self.notify('첫 수집 완료', f'{count}개 대회를 확인했습니다. 추천 목록에서 관심 대회를 선택하세요.')
+        elif notices:
+            kind, title, ref = notices[0]
+            self.notice_ref = ref
+            row = next((r for r in self.store.rows() if r['ref'] == ref), None)
+            extra = ''
+            if row:
+                item = json.loads(row['body'])
+                verdict = assess(item, self.store.profile())
+                extra = '\n제출 ' + display_date(item.get('deadline')) + '\n' + ' / '.join(verdict['reasons'][:2])
+            self.notify(f'{kind} · {len(notices)}건', title + extra + ('\n전체 정보는 알림 기록에서 확인하세요.' if len(notices) > 1 else ''))
+
+    def failed(self, text):
+        self.refresh_button.setEnabled(True)
+        self.next_due = now() + timedelta(minutes=self.store.profile()['interval'])
+        self.store.set('last_error', text)
+        self.status.setText(text + ' · 마지막 성공: ' + display_date(self.store.get('last_success')))
+
+    def notify(self, title, text):
+        if self.store.profile()['notify'] and self.tray.isVisible():
+            self.tray.showMessage('Kaggle Scout · ' + title, text[:240], QSystemTrayIcon.MessageIcon.Information, 10000)
+
+    def tick(self):
+        if self.credentials and not self.await_profile and not self.preview and now() >= self.next_due:
+            self.refresh()
+
+    def load_pages(self):
+        if not self.selected or self.busy() or self.preview:
+            return
+        if not self.credentials:
+            self.connect_account()
+            return
+        ref = self.selected
+        self.status.setText('설명·규칙을 추가 조회합니다. 대회 권한에 따라 제공되지 않을 수 있습니다…')
+        self.job = Job(lambda: Kaggle(self.credentials).pages(ref), self)
+        def done(pages):
+            rows = self.store.rows()
+            row = next((r for r in rows if r['ref'] == ref), None)
+            if row:
+                item = json.loads(row['body'])
+                item['pages'] = '\n\n'.join(str(p.get('name', '')) + '\n' + str(p.get('content', '')) for p in pages)
+                self.store.sync([item], self.store.profile())
+            self.status.setText('추가 조회 완료' if pages else '추가 설명을 제공받지 못했습니다. Kaggle 원문에서 확인하세요.')
+            self.render()
+        self.job.done.connect(done)
+        self.job.failed.connect(self.failed)
+        self.job.start()
+
+    def build_events(self):
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.setContentsMargins(32, 32, 32, 32)
+        box.addWidget(label('ACTIVITY', 'eyebrow'))
+        box.addWidget(label('알림 기록', 'heading'))
+        box.addWidget(label('새 추천 · 관심 대회 정보 변경 · 마감 7일 / 3일 / 1일 전', 'muted'))
+        self.events = QTextBrowser()
+        box.addWidget(self.events)
+        self.pages.addWidget(page)
+
+    def render_events(self):
+        with self.store.connect() as con:
+            rows = con.execute('SELECT * FROM events ORDER BY id DESC LIMIT 300').fetchall()
+        self.events.setHtml(''.join('<h3>' + html.escape(r['kind']) + '</h3><p>' + html.escape(r['message']) + '</p><p style="color:#6c7d90">' + display_date(r['created']) + '</p><hr>' for r in rows) or '<h3>아직 알림이 없습니다.</h3><p>첫 수집은 목록으로 보여주고, 이후 새 추천과 관심 대회 변경 사항을 기록합니다.</p>')
+
+    def build_settings(self):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        page = QWidget()
+        box = QVBoxLayout(page)
+        box.setContentsMargins(32, 28, 32, 28)
+        box.setSpacing(18)
+        box.addWidget(label('MY PROFILE', 'eyebrow'))
+        box.addWidget(label('내 기준으로 고르는 도전', 'heading'))
+        box.addWidget(label('설정을 바꾸면 저장된 대회의 추천과 다음 수집 알림에 바로 반영됩니다.', 'muted', True))
+        connection, c = card()
+        c.addWidget(label('Kaggle 계정', 'title'))
+        self.connection_label = label('저장된 연결 있음' if self.store.get('credentials') else '아직 연결되지 않았습니다.', 'muted')
+        c.addWidget(self.connection_label)
+        c.addWidget(button('계정 연결 / 다시 연결', self.connect_account))
+        box.addWidget(connection)
+        interests, i = card()
+        i.addWidget(label('관심 분야', 'title'))
+        grid = QGridLayout()
+        p = self.store.profile()
+        self.topic_checks = {}
+        for n, name in enumerate(TOPICS):
+            chk = QCheckBox(name)
+            chk.setChecked(name in p['topics'])
+            self.topic_checks[name] = chk
+            grid.addWidget(chk, n // 2, n % 2)
+        i.addLayout(grid)
+        i.addWidget(label('목적: 학습 · 포트폴리오 · 취업 · 수상 / 개인·팀 모두 포함\n분야 미분류 대회도 탐색에 포함합니다. 준비 기간 하한은 두지 않습니다.', 'muted', True))
+        box.addWidget(interests)
+        hardware, h = card()
+        h.addWidget(label('사용 가능한 환경', 'title'))
+        fields = QGridLayout()
+        self.name_input = QLineEdit(p['name'])
+        self.skills_input = QLineEdit(p['skills'])
+        self.gpu_input = QLineEdit(p['gpu'])
+        self.vram_input = QSpinBox()
+        self.vram_input.setRange(0, 512)
+        self.vram_input.setSuffix(' GB')
+        self.vram_input.setValue(p['vram'])
+        for n, (name, widget) in enumerate([('프로필 이름', self.name_input), ('보유 기술', self.skills_input), ('GPU 이름 (없으면 없음)', self.gpu_input), ('GPU VRAM', self.vram_input)]):
+            fields.addWidget(label(name, 'muted'), n, 0)
+            fields.addWidget(widget, n, 1)
+        h.addLayout(fields)
+        self.paid = QCheckBox('유료 API를 사용하는 대회도 허용')
+        self.paid.setChecked(p['paid_api'])
+        h.addWidget(self.paid)
+        h.addWidget(label('GPU 이름과 용량만으로 실행 가능성을 확정하지 않습니다.\n요구 VRAM 정보가 없으면 확인 필요로 표시합니다. 보유 기술은 현재 프로필 메모로 사용합니다.', 'muted', True))
+        box.addWidget(hardware)
+        filters, f = card()
+        f.addWidget(label('제외 조건과 알림', 'title'))
+        self.students = QCheckBox('학생 전용 문구가 감지된 대회 제외')
+        self.students.setChecked(p['exclude_students'])
+        self.offline = QCheckBox('오프라인 참석 필수 문구가 감지된 대회 제외')
+        self.offline.setChecked(p['exclude_offline'])
+        self.notifications = QCheckBox('PC 알림 받기 (관심 대회 마감 알림 포함)')
+        self.notifications.setChecked(p['notify'])
+        self.autostart = QCheckBox('Windows 로그인 시 트레이로 자동 시작')
+        self.autostart.setChecked(self.autostart_enabled())
+        for chk in [self.students, self.offline, self.notifications, self.autostart]:
+            f.addWidget(chk)
+        self.keywords = QLineEdit(', '.join(p['exclude_keywords']))
+        self.keywords.setPlaceholderText('추가 제외 키워드, 쉼표로 구분')
+        f.addWidget(self.keywords)
+        row = QHBoxLayout()
+        row.addWidget(label('확인 주기', 'muted'))
+        self.interval = QSpinBox()
+        self.interval.setRange(15, 1440)
+        self.interval.setSuffix(' 분')
+        self.interval.setValue(p['interval'])
+        row.addWidget(self.interval)
+        row.addWidget(label('최소 탐색 점수', 'muted'))
+        self.threshold = QSpinBox()
+        self.threshold.setRange(0, 100)
+        self.threshold.setValue(p['min_score'])
+        row.addWidget(self.threshold)
+        f.addLayout(row)
+        f.addWidget(label('PC가 켜져 있고 앱이 실행 중일 때 확인합니다. 절전 복귀 후 놓친 주기를 확인합니다.\n참가 자격·API 비용 조건은 감지 문구가 없더라도 확정하지 않습니다.', 'muted', True))
+        box.addWidget(filters)
+        bottom = QHBoxLayout()
+        bottom.addWidget(button('프로필 내보내기', self.export_profile))
+        bottom.addWidget(button('프로필 가져오기', self.import_profile))
+        bottom.addStretch()
+        bottom.addWidget(button('설정 저장하고 대회 확인 →', self.save_settings, True))
+        box.addLayout(bottom)
+        self.settings_status = label('인증 정보와 수집 기록은 프로필 내보내기에 포함되지 않습니다.', 'muted', True)
+        box.addWidget(self.settings_status)
+        scroll.setWidget(page)
+        self.pages.addWidget(scroll)
+
+    def read_form(self):
+        p = self.store.profile()
+        p.update(name=self.name_input.text().strip() or '나의 프로필',
+                 skills=self.skills_input.text().strip(), gpu=self.gpu_input.text().strip() or '없음',
+                 vram=self.vram_input.value(), paid_api=self.paid.isChecked(),
+                 topics=[k for k, c in self.topic_checks.items() if c.isChecked()],
+                 exclude_students=self.students.isChecked(), exclude_offline=self.offline.isChecked(),
+                 notify=self.notifications.isChecked(), interval=self.interval.value(),
+                 min_score=self.threshold.value(),
+                 exclude_keywords=[k.strip() for k in self.keywords.text().split(',') if k.strip()])
+        return p
+
+    def autostart_enabled(self):
+        if os.name != 'nt':
+            return False
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run') as key:
+                winreg.QueryValueEx(key, 'KaggleScout')
+            return True
+        except OSError:
+            return False
+
+    def save_settings(self):
+        p = self.read_form()
+        self.store.set('profile', p)
+        self.await_profile = False
+        if os.name == 'nt' and not self.preview:
+            import winreg
+            try:
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r'Software\Microsoft\Windows\CurrentVersion\Run') as key:
+                    if self.autostart.isChecked():
+                        command = f'"{sys.executable}" --background' if getattr(sys, 'frozen', False) else f'"{sys.executable}" "{Path(__file__)}" --background'
+                        winreg.SetValueEx(key, 'KaggleScout', 0, winreg.REG_SZ, command)
+                    else:
+                        try:
+                            winreg.DeleteValue(key, 'KaggleScout')
+                        except FileNotFoundError:
+                            pass
+            except OSError:
+                self.settings_status.setText('프로필은 저장했지만 자동 시작 등록에 실패했습니다.')
+                return
+        self.settings_status.setText('설정이 저장되었습니다.')
+        self.navigate(0)
+        self.refresh()
+
+    def export_profile(self):
+        path, _ = QFileDialog.getSaveFileName(self, '개인 프로필 내보내기', 'scout-profile.json', 'JSON (*.json)')
+        if path:
+            try:
+                Path(path).write_text(json.dumps(self.read_form(), indent=2, ensure_ascii=False), encoding='utf8')
+                self.settings_status.setText('프로필을 내보냈습니다. 인증 정보는 포함되지 않습니다.')
+            except OSError:
+                self.settings_status.setText('프로필 파일을 저장하지 못했습니다.')
+
+    def import_profile(self):
+        path, _ = QFileDialog.getOpenFileName(self, '개인 프로필 가져오기', '', 'JSON (*.json)')
+        if not path:
+            return
+        try:
+            p = json.loads(Path(path).read_text(encoding='utf-8-sig'))
+            if not isinstance(p, dict):
+                raise ValueError()
+            for k in DEFAULT:
+                if k in p and type(p[k]) is not type(DEFAULT[k]):
+                    raise ValueError()
+            p = {**copy.deepcopy(DEFAULT), **{k: p[k] for k in DEFAULT if k in p}}
+            if not (15 <= p['interval'] <= 1440 and 0 <= p['vram'] <= 512 and 0 <= p['min_score'] <= 100):
+                raise ValueError()
+            if not all(isinstance(x, str) for x in p['exclude_keywords']) or not all(x in TOPICS for x in p['topics']):
+                raise ValueError()
+            self.name_input.setText(p['name'])
+            self.skills_input.setText(p['skills'])
+            self.gpu_input.setText(p['gpu'])
+            self.vram_input.setValue(p['vram'])
+            self.paid.setChecked(p['paid_api'])
+            self.students.setChecked(p['exclude_students'])
+            self.offline.setChecked(p['exclude_offline'])
+            self.notifications.setChecked(p['notify'])
+            self.interval.setValue(p['interval'])
+            self.threshold.setValue(p['min_score'])
+            self.keywords.setText(', '.join(p['exclude_keywords']))
+            for name, chk in self.topic_checks.items():
+                chk.setChecked(name in p['topics'])
+            self.settings_status.setText('프로필을 불러왔습니다. 설정 저장을 눌러 적용하세요.')
+        except (ValueError, OSError, TypeError):
+            self.settings_status.setText('지원하는 프로필 JSON 파일이 아닙니다.')
+
+def main():
+    app = QApplication(sys.argv)
+    app.setApplicationName('Kaggle Scout')
+    app.setOrganizationName('PersonalTools')
+    font = ASSETS / 'NotoSansKR.ttf'
+    if font.exists():
+        QFontDatabase.addApplicationFont(str(font))
+    app.setFont(QFont('Noto Sans KR', 10))
+    app.setStyleSheet(STYLE)
+    preview = '--preview' in sys.argv
+    folder = Path(os.environ.get('SCOUT_DATA_DIR', str(ROOT / ('preview-data' if preview else 'data'))))
+    folder.mkdir(parents=True, exist_ok=True)
+    lock = QLockFile(str(folder / 'app.lock'))
+    lock.setStaleLockTime(30000)
+    if not lock.tryLock(100):
+        QMessageBox.information(None, 'Kaggle Scout', '이미 실행 중입니다. 작업 표시줄의 트레이 아이콘을 확인하세요.')
+        return 0
+    store = Store(folder)
+    window = Window(store, preview)
+    if '--background' not in sys.argv or not store.get('credentials') or not window.tray.isVisible():
+        window.show()
+    app.setQuitOnLastWindowClosed(False)
+    if '--smoke' in sys.argv:
+        def smoke():
+            (ROOT / 'work').mkdir(exist_ok=True)
+            window.grab().save(str(ROOT / 'work' / 'app-smoke.png'))
+            window.quitting = True
+            window.close()
+            app.quit()
+        QTimer.singleShot(1500, smoke)
+    return app.exec()
+
+if __name__ == '__main__':
+    sys.exit(main())

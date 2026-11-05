@@ -1,0 +1,16 @@
+data/
+preview-data/
+work/
+build/
+dist/
+.venv/
+__pycache__/
+*.pyc
+*.spec
+*.log
+*.sqlite*
+kaggle.json
+access_token
+.env
+*.zip
+*.exe
