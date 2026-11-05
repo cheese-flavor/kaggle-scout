@@ -7,6 +7,8 @@ if (-not (Test-Path -LiteralPath $scoutPython)) {
 }
 & $scoutPython -m pip install -r requirements-lock.txt
 if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+& $scoutPython -c 'from installation import backup_legacy_for_build; backup_legacy_for_build()'
+if ($LASTEXITCODE -ne 0) { throw 'Legacy data backup failed; refusing to replace build directory' }
 $scoutPreviousPath = $env:PATH
 try {
     # Native tools such as Poppler can expose an incompatible icuuc.dll on PATH.

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabe
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
     QFileDialog, QSystemTrayIcon, QMenu, QSplitter)
 from core import Store, Kaggle, DEFAULT, TOPICS, AUDIENCES, validate_profile, read_json_file, validate_credentials, assess, now, date, display_date, plain, slug
+from installation import data_directory, migrate_database
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
@@ -867,6 +868,14 @@ class Window(QMainWindow):
             self.settings_status.setText('지원하는 프로필 JSON 파일이 아닙니다.')
 
 def main():
+    if '--migrate-from' in sys.argv:
+        try:
+            index = sys.argv.index('--migrate-from')
+            source = Path(sys.argv[index + 1])
+            migrate_database(source, data_directory(ROOT, frozen=True))
+            return 0
+        except Exception:
+            return 1
     app = QApplication(sys.argv)
     app.setApplicationName('Kaggle Scout')
     app.setOrganizationName('PersonalTools')
@@ -877,7 +886,8 @@ def main():
     app.setFont(font)
     app.setStyleSheet(STYLE)
     preview = '--preview' in sys.argv
-    folder = Path(os.environ.get('SCOUT_DATA_DIR', str(ROOT / ('preview-data' if preview else 'data'))))
+    folder = data_directory(ROOT, frozen=getattr(sys, 'frozen', False),
+                            portable='--portable' in sys.argv, preview=preview)
     folder.mkdir(parents=True, exist_ok=True)
     lock = QLockFile(str(folder / 'app.lock'))
     lock.setStaleLockTime(30000)
