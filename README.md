@@ -1,6 +1,6 @@
 # Kaggle Scout
 
-현재 버전: **0.1.1** · Windows 데스크톱
+현재 버전: **0.2.0** · Windows 데스크톱
 
 Kaggle 대회를 모아 개인의 관심 분야와 환경에 따라 정렬하고 새 대회·관심 대회 변경·마감 일정을 알려주는 Windows 데스크톱 앱입니다. 생성형 AI, LLM API, 유료 AI API를 호출하지 않습니다. Kaggle과는 독립적인 비공식 개인 프로젝트입니다.
 
@@ -78,7 +78,7 @@ python -m unittest -v
 - [Figma 디자인: 대시보드 · 최초 연결 · 프로필 설정](https://www.figma.com/design/JVhaimvEcSmeM8yHuj5mpo)
 - Kaggle 하늘색 `#20BEFF`, 네이비 `#102C43`, 밝은 배경과 카드 기반 목록/상세 화면
 - 직접 제작한 나침반 아이콘: `assets/scout.svg`, PNG, Windows ICO
-- Noto Sans KR 폰트: SIL Open Font License, `assets/NotoSansKR-LICENSE.txt`
+- Pretendard 1.3.9 정적 폰트 (Regular / Medium / SemiBold / Bold): SIL Open Font License, `assets/Pretendard-LICENSE.txt`. [공식 배포](https://github.com/orioncactus/pretendard/releases/tag/v1.3.9)
 - [Kaggle API 문서](https://www.kaggle.com/docs/api), [공식 CLI 대회 문서](https://github.com/Kaggle/kaggle-cli/blob/main/docs/competitions.md)
 
 ## 현재 검증 상태
@@ -95,3 +95,8 @@ python -m unittest -v
 | 2026-11-05 | 0.1.0 · 관리 문서 정리 | 작업 단위별 커밋 규칙, 버전·변경·검증 로그 도입. 최초 구현 이력 유지 | GitHub 비공개 저장소와 소스 파일 목록 확인. 인증·개인 기록 제외 규칙 적용 |
 | 2026-11-05 | 0.1.1 · 실행 파일 DLL 충돌 수정 | 최초 배포 검증에서 QtCore 로드 실패 확인. PATH의 외부 Poppler ICU DLL이 섞인 것이 원인. Python·Windows 경로로 한정한 클린 빌드로 변경. 실행 파일 전용 검증 스크립트 추가 | `verify-build.ps1` 통과: 새 실행 파일이 실제 GUI를 렌더링하고 종료 코드 0으로 종료. 충돌 ICU DLL 미포함 확인. 실계정 인증은 최초 연결에서 확인 필요 |
 | 2026-11-05 | 0.1.1 · Windows 배포 패키지 | 개인 데이터가 포함되지 않는 ZIP 생성 스크립트와 배포용 시작 안내 추가. 바탕화면 바로가기 제공. GitHub 비공개 배포 버전 관리 | 배포 ZIP 파일 목록·SHA256 확인. 실행 파일 직접 구동 검증 통과. 인증·수집 DB는 배포 대상에서 제외 |
+| 2026-11-05 | 0.2.0 · 폰트·화면·페이지 개선 | Pretendard 정적 굵기 4종, 기본 창 1140×780 / 최소 960×680, 큰 상단 안내·반복 문구 축소. 페이지당 5·10·20·50개 및 이전/다음 이동 추가 | 테스트 17개 통과. 23개 목록의 페이지 누락·중복 방지, 검색 시 페이지 초기화, 표시 개수 저장 확인. 가상 데이터로 화면 점검 |
+
+### 0.2.0 화면 설정
+
+목록 하단 또는 나의 설정에서 **페이지당 표시 개수**를 바꿀 수 있습니다. 이 값은 화면에 보이는 대회 개수이며, Kaggle API에서 수집하는 전체 페이지 수를 제한하지 않습니다. 검색·정렬·분야 필터는 전체 수집 목록에 적용한 뒤 페이지를 나눕니다.

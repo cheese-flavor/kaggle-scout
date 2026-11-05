@@ -26,7 +26,8 @@ DEFAULT = {'name': '나의 프로필', 'topics': list(TOPICS), 'skills': 'Python
            'gpu': 'RTX 5060 Ti', 'vram': 16, 'paid_api': False,
            'exclude_students': True, 'exclude_offline': True,
            'exclude_keywords': [], 'interval': 60, 'notify': True,
-           'purposes': ['학습', '포트폴리오', '취업', '수상'], 'min_score': 0}
+           'purposes': ['학습', '포트폴리오', '취업', '수상'], 'min_score': 0,
+           'page_size': 10}
 
 def now():
     return datetime.now(UTC)

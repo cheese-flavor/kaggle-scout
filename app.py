@@ -16,17 +16,17 @@ from core import Store, Kaggle, DEFAULT, TOPICS, assess, now, date, display_date
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
 STYLE = '''
-* { font-family: "Noto Sans KR", "Malgun Gothic"; font-size: 13px; color: #203146; }
+* { font-family: "Pretendard", "Malgun Gothic"; font-size: 14px; font-weight: 400; color: #23364b; }
 QMainWindow, QDialog { background: #f5f8fc; }
 QWidget#sidebar { background: #ffffff; border-right: 1px solid #e3ebf3; }
 QFrame#card { background: #ffffff; border: 1px solid #e2eaf2; border-radius: 14px; }
 QFrame#hero { background: #e9f8ff; border: 1px solid #c5edff; border-radius: 16px; }
 QLabel { background: transparent; border: none; }
-QLabel#muted { color: #6c7d90; }
-QLabel#eyebrow { color: #0286b5; font-size: 11px; font-weight: 700; }
-QLabel#heading { font-size: 26px; font-weight: 700; color: #152b42; }
-QLabel#title { font-size: 17px; font-weight: 700; }
-QPushButton { background: white; border: 1px solid #dbe5ee; border-radius: 8px; padding: 10px 16px; font-weight: 600; }
+QLabel#muted { color: #586c82; font-size: 14px; }
+QLabel#eyebrow { color: #087da4; font-size: 12px; font-weight: 600; }
+QLabel#heading { font-size: 25px; font-weight: 600; color: #152b42; }
+QLabel#title { font-size: 17px; font-weight: 600; }
+QPushButton { background: white; border: 1px solid #dbe5ee; border-radius: 8px; padding: 10px 16px; font-weight: 500; }
 QPushButton:hover { background: #eef8fd; border-color: #9edff9; }
 QPushButton:pressed { background: #d3f0fc; }
 QPushButton:disabled { color: #9daab6; background: #edf2f7; }
@@ -173,13 +173,15 @@ class Window(QMainWindow):
         self.credentials = None
         self.job = None
         self.mode = 0
+        self.page_index = 0
+        self.current_page_refs = []
         self.selected = None
         self.next_due = now()
         self.quitting = False
         self.await_profile = False
         self.setWindowTitle('Kaggle Scout' + (' · 디자인 미리보기 / 가상 데이터' if preview else ''))
-        self.setMinimumSize(1100, 800)
-        self.resize(1380, 900)
+        self.setMinimumSize(960, 680)
+        self.resize(1140, 780)
         self.setWindowIcon(QIcon(str(ASSETS / 'scout.ico')))
         shell = QWidget()
         self.setCentralWidget(shell)
@@ -188,16 +190,15 @@ class Window(QMainWindow):
         root.setSpacing(0)
         sidebar = QWidget()
         sidebar.setObjectName('sidebar')
-        sidebar.setFixedWidth(220)
+        sidebar.setFixedWidth(180)
         side = QVBoxLayout(sidebar)
-        side.setContentsMargins(20, 30, 20, 24)
+        side.setContentsMargins(16, 24, 16, 20)
         side.setSpacing(10)
         mark = QLabel()
-        mark.setPixmap(QIcon(str(ASSETS / 'scout.ico')).pixmap(48, 48))
+        mark.setPixmap(QIcon(str(ASSETS / 'scout.ico')).pixmap(38, 38))
         side.addWidget(mark)
         side.addWidget(label('Kaggle Scout', 'title'))
-        side.addWidget(label('FIND YOUR NEXT CHALLENGE', 'eyebrow'))
-        side.addSpacing(30)
+        side.addSpacing(16)
         self.nav = []
         for i, text in enumerate(['◈   대회 탐색', '☆   관심 대회', '◷   알림 기록', '⚙   나의 설정']):
             b = button(text, lambda checked=False, index=i: self.navigate(index))
@@ -206,12 +207,8 @@ class Window(QMainWindow):
             self.nav.append(b)
             side.addWidget(b)
         side.addStretch()
-        status_card, sc = card()
-        sc.addWidget(label('MY WORKSPACE', 'eyebrow'))
         self.profile_summary = label('', 'muted', True)
-        sc.addWidget(self.profile_summary)
-        side.addWidget(status_card)
-        side.addWidget(label('개인용 · AI API 사용 없음\nKaggle 비공식 독립 앱', 'muted', True))
+        side.addWidget(self.profile_summary)
         root.addWidget(sidebar)
         self.pages = QStackedWidget()
         root.addWidget(self.pages, 1)
@@ -296,11 +293,12 @@ class Window(QMainWindow):
 
     def navigate(self, index):
         self.mode = index
+        self.page_index = 0
         for i, b in enumerate(self.nav):
             b.setChecked(i == index)
         self.pages.setCurrentIndex(0 if index <= 1 else index - 1)
         if index <= 1:
-            self.heading.setText('관심 대회' if index == 1 else '나의 다음 도전 찾기')
+            self.heading.setText('관심 대회' if index == 1 else '대회 탐색')
             self.render()
         elif index == 2:
             self.render_events()
@@ -308,50 +306,47 @@ class Window(QMainWindow):
     def build_discovery(self):
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(30, 28, 30, 20)
-        layout.setSpacing(18)
+        layout.setContentsMargins(22, 22, 22, 16)
+        layout.setSpacing(12)
         top = QHBoxLayout()
         titlebox = QVBoxLayout()
-        titlebox.addWidget(label('DISCOVER / PERSONALIZED FOR YOU', 'eyebrow'))
-        self.heading = label('나의 다음 도전 찾기', 'heading')
+        self.heading = label('대회 탐색', 'heading')
         titlebox.addWidget(self.heading)
         top.addLayout(titlebox)
         top.addStretch()
         self.refresh_button = button('↻  지금 확인', self.refresh, True)
         top.addWidget(self.refresh_button)
         layout.addLayout(top)
-        hero, h = card(True)
-        h.addWidget(label('관심 분야는 넓게, 다음 도전은 나답게.', 'title'))
         self.hero_text = label('', 'muted', True)
-        h.addWidget(self.hero_text)
-        layout.addWidget(hero)
+        layout.addWidget(self.hero_text)
         self.stats = label('', 'muted')
         layout.addWidget(self.stats)
         filters = QHBoxLayout()
         self.search = QLineEdit()
         self.search.setPlaceholderText('대회명, 주제, 설명 검색…')
-        self.search.textChanged.connect(self.render)
+        self.search.textChanged.connect(self.reset_page)
         filters.addWidget(self.search, 1)
         self.topic = QComboBox()
         self.topic.addItems(['모든 분야'] + list(TOPICS))
-        self.topic.currentTextChanged.connect(self.render)
+        self.topic.currentTextChanged.connect(self.reset_page)
         filters.addWidget(self.topic)
         self.sort = QComboBox()
         self.sort.addItems(['추천 순', '마감 임박 순', '최근 발견 순'])
-        self.sort.currentTextChanged.connect(self.render)
+        self.sort.currentTextChanged.connect(self.reset_page)
         filters.addWidget(self.sort)
         layout.addLayout(filters)
         switches = QHBoxLayout()
         self.show_excluded = QCheckBox('제외·마감 대회 표시')
         self.show_hidden = QCheckBox('숨긴 대회 표시')
-        self.show_excluded.toggled.connect(self.render)
-        self.show_hidden.toggled.connect(self.render)
+        self.show_excluded.toggled.connect(self.reset_page)
+        self.show_hidden.toggled.connect(self.reset_page)
         switches.addWidget(self.show_excluded)
         switches.addWidget(self.show_hidden)
         switches.addStretch()
         layout.addLayout(switches)
         split = QSplitter(Qt.Orientation.Horizontal)
         scroll = QScrollArea()
+        self.list_scroll = scroll
         scroll.setWidgetResizable(True)
         contents = QWidget()
         self.cards = QVBoxLayout(contents)
@@ -360,31 +355,66 @@ class Window(QMainWindow):
         scroll.setWidget(contents)
         split.addWidget(scroll)
         detail, d = card()
-        detail.setMinimumWidth(350)
-        d.addWidget(label('CHALLENGE BRIEF', 'eyebrow'))
+        detail.setMinimumWidth(290)
+        d.setContentsMargins(16, 16, 16, 16)
+        d.addWidget(label('대회 정보', 'title'))
         self.detail = QTextBrowser()
-        self.detail.setMinimumHeight(150)
+        self.detail.document().setDefaultStyleSheet('body {font-family: Pretendard; font-size:14px; color:#23364b;} h2 {font-size:21px; font-weight:600; margin-bottom:16px;} h3 {font-size:16px; font-weight:600; margin-top:22px;} p {line-height:145%; margin-bottom:12px;}')
+        self.detail.setMinimumHeight(140)
         self.detail.setOpenExternalLinks(False)
         d.addWidget(self.detail, 1)
         actions = QHBoxLayout()
         actions.addWidget(button('☆ 관심', self.star))
         actions.addWidget(button('숨기기 / 복원', self.hide_item))
         d.addLayout(actions)
-        d.addWidget(button('규칙·설명 추가 조회', self.load_pages))
+        d.addWidget(button('참가 규칙 확인', self.load_pages))
         d.addWidget(button('Kaggle 원문 열기 ↗', self.open_selected, True))
         split.addWidget(detail)
         split.setSizes([600, 370])
         layout.addWidget(split, 1)
-        self.status = label('Kaggle 연결을 기다리고 있습니다.', 'muted', True)
+        paging = QHBoxLayout()
+        self.page_label = label('1 / 1 페이지', 'muted')
+        paging.addWidget(self.page_label)
+        paging.addStretch()
+        self.display_size = QComboBox()
+        for size in (5, 10, 20, 50):
+            self.display_size.addItem(f'페이지당 {size}개', size)
+        self.display_size.setCurrentIndex(self.display_size.findData(self.store.profile()['page_size']))
+        self.display_size.currentIndexChanged.connect(self.change_page_size)
+        paging.addWidget(self.display_size)
+        self.previous_page = button('← 이전', lambda: self.move_page(-1))
+        self.next_page = button('다음 →', lambda: self.move_page(1))
+        paging.addWidget(self.previous_page)
+        paging.addWidget(self.next_page)
+        layout.addLayout(paging)
+        self.status = label('Kaggle 연결 대기', 'muted', True)
         layout.addWidget(self.status)
         self.pages.addWidget(page)
+
+    def reset_page(self, *_):
+        self.page_index = 0
+        self.render()
+
+    def move_page(self, delta):
+        self.page_index += delta
+        self.render()
+        self.list_scroll.verticalScrollBar().setValue(0)
+
+    def change_page_size(self, *_):
+        size = self.display_size.currentData()
+        profile = self.store.profile()
+        profile['page_size'] = size
+        self.store.set('profile', profile)
+        if hasattr(self, 'page_size_input'):
+            self.page_size_input.setCurrentIndex(self.page_size_input.findData(size))
+        self.reset_page()
 
     def render(self, *_):
         if not hasattr(self, 'cards'):
             return
         profile = self.store.profile()
-        self.profile_summary.setText(f"{profile['gpu']} · {profile['vram']}GB\n{profile['skills']}\n유료 API {'허용' if profile['paid_api'] else '없음'}")
-        self.hero_text.setText(f"{len(profile['topics'])}개 관심 분야 · {profile['gpu']} {profile['vram']}GB · {profile['interval']}분마다 확인\n추천은 키워드 기반 탐색 점수입니다. 참가 자격과 실행 자원은 대회 규칙에서 최종 확인하세요.")
+        self.profile_summary.setText(f"{profile['name']}\n{profile['gpu']} · {profile['vram']}GB")
+        self.hero_text.setText(f"관심 분야 {len(profile['topics'])}개 · {profile['interval']}분마다 확인")
         rows = self.store.rows()
         results = []
         query = self.search.text().lower().strip()
@@ -412,6 +442,16 @@ class Window(QMainWindow):
         else:
             results.sort(key=lambda r: (-r['verdict']['score'], r['item'].get('deadline', '9999')))
         self.stats.setText(f"표시 {len(results)}개    /    저장된 대회 {len(rows)}개    /    관심 {sum(r['starred'] for r in rows)}개" + ('    ·    가상 데이터 미리보기' if self.preview else ''))
+        size = profile['page_size']
+        count = len(results)
+        page_count = max(1, (count + size - 1) // size)
+        self.page_index = max(0, min(self.page_index, page_count - 1))
+        start = self.page_index * size
+        results = results[start:start + size]
+        self.current_page_refs = [r['ref'] for r in results]
+        self.page_label.setText(f'{self.page_index + 1} / {page_count} 페이지  ·  {start + 1 if count else 0}–{start + len(results)} / {count}개')
+        self.previous_page.setEnabled(self.page_index > 0)
+        self.next_page.setEnabled(self.page_index + 1 < page_count)
         clear(self.cards)
         if not results:
             panel, p = card()
@@ -422,14 +462,16 @@ class Window(QMainWindow):
         for row in results:
             item, v = row['item'], row['verdict']
             panel, p = card()
-            panel.setMinimumHeight(220)
+            panel.setMinimumHeight(190)
+            p.setContentsMargins(18, 16, 18, 16)
+            p.setSpacing(8)
             p.addWidget(label(('★  ' if row['starred'] else '') + item.get('title', row['ref']), 'title', True))
             p.addWidget(label('  ·  '.join(v['topics']) or '분야 미분류', 'eyebrow', True))
             desc = plain(item.get('description', ''))
-            p.addWidget(label(desc[:180] + ('…' if len(desc) > 180 else ''), 'muted', True))
+            p.addWidget(label(desc[:110] + ('…' if len(desc) > 110 else ''), 'muted', True))
             p.addWidget(label('제출 마감  ' + display_date(item.get('deadline')), 'muted'))
             line = QHBoxLayout()
-            line.addWidget(label(f"탐색 점수 {v['score']}  ·  {item.get('reward') or '보상 정보 없음'}", 'muted'))
+            line.addWidget(label(item.get('reward') or '보상 미정', 'muted'))
             line.addStretch()
             line.addWidget(button('자세히 →', lambda checked=False, ref=row['ref']: self.select(ref)))
             p.addLayout(line)
@@ -580,10 +622,10 @@ class Window(QMainWindow):
         page = QWidget()
         box = QVBoxLayout(page)
         box.setContentsMargins(32, 32, 32, 32)
-        box.addWidget(label('ACTIVITY', 'eyebrow'))
         box.addWidget(label('알림 기록', 'heading'))
         box.addWidget(label('새 추천 · 관심 대회 정보 변경 · 마감 7일 / 3일 / 1일 전', 'muted'))
         self.events = QTextBrowser()
+        self.events.document().setDefaultStyleSheet('body {font-family:Pretendard; font-size:14px;} h3 {font-size:17px; font-weight:600;}')
         box.addWidget(self.events)
         self.pages.addWidget(page)
 
@@ -599,9 +641,7 @@ class Window(QMainWindow):
         box = QVBoxLayout(page)
         box.setContentsMargins(32, 28, 32, 28)
         box.setSpacing(18)
-        box.addWidget(label('MY PROFILE', 'eyebrow'))
-        box.addWidget(label('내 기준으로 고르는 도전', 'heading'))
-        box.addWidget(label('설정을 바꾸면 저장된 대회의 추천과 다음 수집 알림에 바로 반영됩니다.', 'muted', True))
+        box.addWidget(label('나의 설정', 'heading'))
         connection, c = card()
         c.addWidget(label('Kaggle 계정', 'title'))
         self.connection_label = label('저장된 연결 있음' if self.store.get('credentials') else '아직 연결되지 않았습니다.', 'muted')
@@ -619,7 +659,6 @@ class Window(QMainWindow):
             self.topic_checks[name] = chk
             grid.addWidget(chk, n // 2, n % 2)
         i.addLayout(grid)
-        i.addWidget(label('목적: 학습 · 포트폴리오 · 취업 · 수상 / 개인·팀 모두 포함\n분야 미분류 대회도 탐색에 포함합니다. 준비 기간 하한은 두지 않습니다.', 'muted', True))
         box.addWidget(interests)
         hardware, h = card()
         h.addWidget(label('사용 가능한 환경', 'title'))
@@ -638,7 +677,7 @@ class Window(QMainWindow):
         self.paid = QCheckBox('유료 API를 사용하는 대회도 허용')
         self.paid.setChecked(p['paid_api'])
         h.addWidget(self.paid)
-        h.addWidget(label('GPU 이름과 용량만으로 실행 가능성을 확정하지 않습니다.\n요구 VRAM 정보가 없으면 확인 필요로 표시합니다. 보유 기술은 현재 프로필 메모로 사용합니다.', 'muted', True))
+        h.addWidget(label('자원 요구량이 공개되지 않은 대회는 상세 화면에 확인 필요로 표시합니다.', 'muted', True))
         box.addWidget(hardware)
         filters, f = card()
         f.addWidget(label('제외 조건과 알림', 'title'))
@@ -668,7 +707,16 @@ class Window(QMainWindow):
         self.threshold.setValue(p['min_score'])
         row.addWidget(self.threshold)
         f.addLayout(row)
-        f.addWidget(label('PC가 켜져 있고 앱이 실행 중일 때 확인합니다. 절전 복귀 후 놓친 주기를 확인합니다.\n참가 자격·API 비용 조건은 감지 문구가 없더라도 확정하지 않습니다.', 'muted', True))
+        page_row = QHBoxLayout()
+        page_row.addWidget(label('페이지당 표시 개수', 'muted'))
+        self.page_size_input = QComboBox()
+        for size in (5, 10, 20, 50):
+            self.page_size_input.addItem(f'{size}개', size)
+        self.page_size_input.setCurrentIndex(self.page_size_input.findData(p['page_size']))
+        page_row.addWidget(self.page_size_input)
+        page_row.addStretch()
+        f.addLayout(page_row)
+        f.addWidget(label('PC와 앱이 실행 중일 때 확인합니다.', 'muted'))
         box.addWidget(filters)
         bottom = QHBoxLayout()
         bottom.addWidget(button('프로필 내보내기', self.export_profile))
@@ -690,6 +738,7 @@ class Window(QMainWindow):
                  exclude_students=self.students.isChecked(), exclude_offline=self.offline.isChecked(),
                  notify=self.notifications.isChecked(), interval=self.interval.value(),
                  min_score=self.threshold.value(),
+                 page_size=self.page_size_input.currentData(),
                  exclude_keywords=[k.strip() for k in self.keywords.text().split(',') if k.strip()])
         return p
 
@@ -707,6 +756,9 @@ class Window(QMainWindow):
     def save_settings(self):
         p = self.read_form()
         self.store.set('profile', p)
+        self.display_size.blockSignals(True)
+        self.display_size.setCurrentIndex(self.display_size.findData(p['page_size']))
+        self.display_size.blockSignals(False)
         self.await_profile = False
         if os.name == 'nt' and not self.preview:
             import winreg
@@ -750,6 +802,8 @@ class Window(QMainWindow):
             p = {**copy.deepcopy(DEFAULT), **{k: p[k] for k in DEFAULT if k in p}}
             if not (15 <= p['interval'] <= 1440 and 0 <= p['vram'] <= 512 and 0 <= p['min_score'] <= 100):
                 raise ValueError()
+            if p['page_size'] not in (5, 10, 20, 50):
+                raise ValueError()
             if not all(isinstance(x, str) for x in p['exclude_keywords']) or not all(x in TOPICS for x in p['topics']):
                 raise ValueError()
             self.name_input.setText(p['name'])
@@ -762,6 +816,7 @@ class Window(QMainWindow):
             self.notifications.setChecked(p['notify'])
             self.interval.setValue(p['interval'])
             self.threshold.setValue(p['min_score'])
+            self.page_size_input.setCurrentIndex(self.page_size_input.findData(p['page_size']))
             self.keywords.setText(', '.join(p['exclude_keywords']))
             for name, chk in self.topic_checks.items():
                 chk.setChecked(name in p['topics'])
@@ -773,10 +828,11 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName('Kaggle Scout')
     app.setOrganizationName('PersonalTools')
-    font = ASSETS / 'NotoSansKR.ttf'
-    if font.exists():
+    for font in ASSETS.glob('Pretendard-*.otf'):
         QFontDatabase.addApplicationFont(str(font))
-    app.setFont(QFont('Noto Sans KR', 10))
+    font = QFont('Pretendard', 11)
+    font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+    app.setFont(font)
     app.setStyleSheet(STYLE)
     preview = '--preview' in sys.argv
     folder = Path(os.environ.get('SCOUT_DATA_DIR', str(ROOT / ('preview-data' if preview else 'data'))))

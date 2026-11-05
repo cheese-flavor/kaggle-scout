@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from app import Connect, Window, STYLE
 from core import Store, Kaggle
+from test_core import item
 
 APP = QApplication.instance() or QApplication([])
 APP.setStyleSheet(STYLE)
@@ -66,6 +67,26 @@ class UITests(unittest.TestCase):
         self.assertEqual(profile['vram'], 24)
         self.assertTrue(profile['paid_api'])
         self.assertEqual(profile['interval'], 120)
+
+    def test_pagination_covers_every_item_and_resets_after_search(self):
+        self.store.sync([item(f'competition-{i:02}', title=f'대회 {i:02}', deadline='2099-12-01T00:00:00Z') for i in range(23)], self.store.profile())
+        self.window.render()
+        self.assertEqual(len(self.window.current_page_refs), 10)
+        found = list(self.window.current_page_refs)
+        self.window.move_page(1)
+        found += self.window.current_page_refs
+        self.window.move_page(1)
+        found += self.window.current_page_refs
+        self.assertEqual(len(set(found)), 23)
+        self.assertFalse(self.window.next_page.isEnabled())
+        self.window.search.setText('대회 01')
+        self.assertEqual(self.window.page_index, 0)
+        self.assertEqual(self.window.current_page_refs, ['competition-01'])
+
+    def test_page_size_saved_and_used_by_settings(self):
+        self.window.display_size.setCurrentIndex(self.window.display_size.findData(5))
+        self.assertEqual(self.store.profile()['page_size'], 5)
+        self.assertEqual(self.window.read_form()['page_size'], 5)
 
 if __name__ == '__main__':
     unittest.main()
