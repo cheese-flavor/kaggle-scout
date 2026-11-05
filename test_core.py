@@ -59,7 +59,7 @@ class CoreTests(unittest.TestCase):
         value = item(description='Students only. Requires 24 GB VRAM. Paid API is required.')
         v = assess(value, self.profile, AT)
         self.assertEqual(len(v['excluded']), 3)
-        p = {**self.profile, 'vram': 32, 'paid_api': True, 'exclude_students': False}
+        p = {**self.profile, 'vram': 32, 'paid_api': True, 'audiences': ['student']}
         self.assertEqual(assess(value, p, AT)['excluded'], [])
         self.assertIn('용량 조건 내 후보', assess(value, p, AT)['gpu'])
 
@@ -97,6 +97,23 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(assess(item(deadline=AT.isoformat()), self.profile, AT)['excluded'])
         p = {**self.profile, 'exclude_keywords': ['medical']}
         self.assertIn('제외 키워드: medical', assess(item(description='medical prediction'), p, AT)['excluded'])
+
+    def test_audience_settings_and_unknown_policy(self):
+        college = item(description='University students only')
+        self.assertTrue(assess(college, self.profile, AT)['excluded'])
+        p = {**self.profile, 'audiences': ['university']}
+        self.assertEqual(assess(college, p, AT)['excluded'], [])
+        self.assertEqual(assess(item(description='Open to everyone'), self.profile, AT)['audiences'], ['general'])
+        strict = {**self.profile, 'include_unknown_audience': False}
+        self.assertIn('참가 구분 미확인', assess(item(), strict, AT)['excluded'])
+        self.assertEqual(assess(item(description='Open to everyone. Students only.'), self.profile, AT)['audiences'], [])
+
+    def test_previous_profile_migrates_without_losing_preferences(self):
+        self.store.set('profile', {'exclude_students': False, 'gpu': 'Old GPU'})
+        p = self.store.profile()
+        self.assertIn('student', p['audiences'])
+        self.assertEqual(p['gpu'], 'Old GPU')
+        self.assertEqual(p['page_size'], 10)
 
 if __name__ == '__main__':
     unittest.main()

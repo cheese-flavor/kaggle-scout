@@ -88,5 +88,14 @@ class UITests(unittest.TestCase):
         self.assertEqual(self.store.profile()['page_size'], 5)
         self.assertEqual(self.window.read_form()['page_size'], 5)
 
+    def test_audience_form_is_saved(self):
+        self.window.audience_checks['general'].setChecked(False)
+        self.window.audience_checks['university'].setChecked(True)
+        self.window.unknown_audience.setChecked(False)
+        self.window.save_settings()
+        p = self.store.profile()
+        self.assertEqual(p['audiences'], ['university'])
+        self.assertFalse(p['include_unknown_audience'])
+
 if __name__ == '__main__':
     unittest.main()

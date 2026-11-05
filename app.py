@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabe
     QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
     QFileDialog, QSystemTrayIcon, QMenu, QSplitter)
-from core import Store, Kaggle, DEFAULT, TOPICS, assess, now, date, display_date, plain, slug
+from core import Store, Kaggle, DEFAULT, TOPICS, AUDIENCES, migrate_profile, assess, now, date, display_date, plain, slug
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
@@ -660,6 +660,21 @@ class Window(QMainWindow):
             grid.addWidget(chk, n // 2, n % 2)
         i.addLayout(grid)
         box.addWidget(interests)
+        participation, pa = card()
+        pa.addWidget(label('참가 대상', 'title'))
+        self.audience_checks = {}
+        audience_grid = QGridLayout()
+        for n, (key, text) in enumerate(AUDIENCES.items()):
+            chk = QCheckBox(text)
+            chk.setChecked(key in p['audiences'])
+            self.audience_checks[key] = chk
+            audience_grid.addWidget(chk, n // 2, n % 2)
+        pa.addLayout(audience_grid)
+        self.unknown_audience = QCheckBox('참가 조건이 공개되지 않은 대회도 포함')
+        self.unknown_audience.setChecked(p['include_unknown_audience'])
+        pa.addWidget(self.unknown_audience)
+        pa.addWidget(label('대회 설명의 명시적 문구로 구분하며, 최종 참가 자격은 원문에서 확인합니다.', 'muted', True))
+        box.addWidget(participation)
         hardware, h = card()
         h.addWidget(label('사용 가능한 환경', 'title'))
         fields = QGridLayout()
@@ -681,15 +696,13 @@ class Window(QMainWindow):
         box.addWidget(hardware)
         filters, f = card()
         f.addWidget(label('제외 조건과 알림', 'title'))
-        self.students = QCheckBox('학생 전용 문구가 감지된 대회 제외')
-        self.students.setChecked(p['exclude_students'])
         self.offline = QCheckBox('오프라인 참석 필수 문구가 감지된 대회 제외')
         self.offline.setChecked(p['exclude_offline'])
         self.notifications = QCheckBox('PC 알림 받기 (관심 대회 마감 알림 포함)')
         self.notifications.setChecked(p['notify'])
         self.autostart = QCheckBox('Windows 로그인 시 트레이로 자동 시작')
         self.autostart.setChecked(self.autostart_enabled())
-        for chk in [self.students, self.offline, self.notifications, self.autostart]:
+        for chk in [self.offline, self.notifications, self.autostart]:
             f.addWidget(chk)
         self.keywords = QLineEdit(', '.join(p['exclude_keywords']))
         self.keywords.setPlaceholderText('추가 제외 키워드, 쉼표로 구분')
@@ -735,7 +748,10 @@ class Window(QMainWindow):
                  skills=self.skills_input.text().strip(), gpu=self.gpu_input.text().strip() or '없음',
                  vram=self.vram_input.value(), paid_api=self.paid.isChecked(),
                  topics=[k for k, c in self.topic_checks.items() if c.isChecked()],
-                 exclude_students=self.students.isChecked(), exclude_offline=self.offline.isChecked(),
+                 audiences=[k for k, chk in self.audience_checks.items() if chk.isChecked()],
+                 include_unknown_audience=self.unknown_audience.isChecked(),
+                 exclude_students=not any(self.audience_checks[k].isChecked() for k in ('university', 'youth', 'student')),
+                 exclude_offline=self.offline.isChecked(),
                  notify=self.notifications.isChecked(), interval=self.interval.value(),
                  min_score=self.threshold.value(),
                  page_size=self.page_size_input.currentData(),
@@ -799,19 +815,23 @@ class Window(QMainWindow):
             for k in DEFAULT:
                 if k in p and type(p[k]) is not type(DEFAULT[k]):
                     raise ValueError()
-            p = {**copy.deepcopy(DEFAULT), **{k: p[k] for k in DEFAULT if k in p}}
+            p = migrate_profile({k: p[k] for k in DEFAULT if k in p})
             if not (15 <= p['interval'] <= 1440 and 0 <= p['vram'] <= 512 and 0 <= p['min_score'] <= 100):
                 raise ValueError()
             if p['page_size'] not in (5, 10, 20, 50):
                 raise ValueError()
             if not all(isinstance(x, str) for x in p['exclude_keywords']) or not all(x in TOPICS for x in p['topics']):
                 raise ValueError()
+            if not all(x in AUDIENCES for x in p['audiences']):
+                raise ValueError()
             self.name_input.setText(p['name'])
             self.skills_input.setText(p['skills'])
             self.gpu_input.setText(p['gpu'])
             self.vram_input.setValue(p['vram'])
             self.paid.setChecked(p['paid_api'])
-            self.students.setChecked(p['exclude_students'])
+            for key, chk in self.audience_checks.items():
+                chk.setChecked(key in p['audiences'])
+            self.unknown_audience.setChecked(p['include_unknown_audience'])
             self.offline.setChecked(p['exclude_offline'])
             self.notifications.setChecked(p['notify'])
             self.interval.setValue(p['interval'])

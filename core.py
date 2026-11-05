@@ -13,6 +13,8 @@ import requests
 
 UTC = timezone.utc
 KST = timezone(timedelta(hours=9))
+AUDIENCES = {'general': '일반인 / 공개 참가', 'university': '대학생·대학원생',
+             'youth': '청소년·초중고', 'student': '학생 (세부 구분 미공개)'}
 TOPICS = {
     '정형 데이터 / SQL': ['tabular', 'structured data', 'regression', 'sql', 'analytics', 'predict house', 'predict sales'],
     '시계열': ['time series', 'time-series', 'forecast'],
@@ -27,7 +29,30 @@ DEFAULT = {'name': '나의 프로필', 'topics': list(TOPICS), 'skills': 'Python
            'exclude_students': True, 'exclude_offline': True,
            'exclude_keywords': [], 'interval': 60, 'notify': True,
            'purposes': ['학습', '포트폴리오', '취업', '수상'], 'min_score': 0,
-           'page_size': 10}
+           'page_size': 10, 'audiences': ['general'], 'include_unknown_audience': True}
+
+def migrate_profile(value):
+    value = dict(value)
+    if 'audiences' not in value:
+        value['audiences'] = ['general'] if value.get('exclude_students', True) else list(AUDIENCES)
+    return {**DEFAULT, **value}
+
+def detect_audience(text):
+    university = re.search(r'(?:(?:university|college|graduate) students only|(?:open|available) only to (?:university|college|graduate) students|대학(?:원)?생\s*(?:전용|만\s*참가))', text)
+    youth = re.search(r'(?:high school students only|(?:초중고|중고등|고등|중학)학생\s*(?:전용|만\s*참가)|청소년\s*전용)', text)
+    student = re.search(r'(?:only (?:open|available) to (?:university |college )?students|students only|student-only|학생\s*전용|재학생만)', text)
+    public = re.search(r'(?:open to (?:anyone|everyone|all)|anyone can (?:enter|participate)|일반인\s*참가\s*가능|누구나\s*참가)', text)
+    if public and (student or university or youth):
+        return [], '참가 대상: 문구가 혼재되어 원문 확인 필요'
+    if university:
+        return ['university'], '참가 대상: 대학생·대학원생 전용 문구 감지'
+    if youth:
+        return ['youth'], '참가 대상: 청소년·초중고 전용 문구 감지'
+    if student:
+        return ['student'], '참가 대상: 학생 전용 문구 감지 (세부 구분 미공개)'
+    if public:
+        return ['general'], '참가 대상: 일반 공개 문구 감지 · 세부 자격 원문 확인'
+    return [], '참가 대상: 규칙 확인 필요'
 
 def now():
     return datetime.now(UTC)
@@ -89,11 +114,14 @@ def assess(item, profile, at=None):
         excluded.append('신규 참가 마감')
     if item.get('submissionsDisabled'):
         excluded.append('제출 비활성')
-    student = re.search(r'(?:only (?:open|available) to (?:university |college )?students|students only|student-only|학생\s*전용|재학생만)', text)
+    groups, eligibility = detect_audience(text)
     offline = re.search(r'(?:in.person attendance (?:is )?required|mandatory (?:in.person|onsite)|오프라인\s*(?:참석\s*)?필수)', text)
     paid = re.search(r'(?:paid api (?:is )?required|requires? (?:a )?paid api|유료\s*api\s*필수)', text)
-    if student and profile['exclude_students']:
-        excluded.append('학생 전용 문구 감지 — 원문 검토 필요')
+    selected_groups = profile.get('audiences', ['general'] if profile.get('exclude_students', True) else list(AUDIENCES))
+    if groups and not set(groups).intersection(selected_groups):
+        excluded.append('선택한 참가 구분과 다름 — 원문 검토 필요')
+    if not groups and not profile.get('include_unknown_audience', True):
+        excluded.append('참가 구분 미확인')
     if offline and profile['exclude_offline']:
         excluded.append('오프라인 필수 문구 감지 — 원문 검토 필요')
     if paid and not profile['paid_api']:
@@ -115,11 +143,8 @@ def assess(item, profile, at=None):
         gpu += ' · 정형 데이터 기본 모델부터 검토 가능'
     if 'LLM / 생성형 AI' in matched or '이미지 / 영상' in matched:
         gpu += ' · 모델 크기·학습 방식·제출 제한 확인'
-    eligibility = '일반인 참가 가능 여부: 규칙 확인 필요'
-    if student:
-        eligibility = '학생 전용 가능성 — 감지 문구를 원문에서 확인'
     return {'score': min(score, 100), 'topics': matched, 'reasons': reasons,
-            'excluded': excluded, 'gpu': gpu, 'eligibility': eligibility,
+            'excluded': excluded, 'gpu': gpu, 'eligibility': eligibility, 'audiences': groups,
             'api': '유료 API 필수 문구 감지' if paid else '유료 API 필요 여부: 규칙 확인 필요'}
 
 class Blob(ctypes.Structure):
@@ -176,7 +201,7 @@ class Store:
             con.execute('INSERT OR REPLACE INTO meta VALUES(?,?)', (key, json.dumps(value, ensure_ascii=False)))
 
     def profile(self):
-        return {**DEFAULT, **self.get('profile', {})}
+        return migrate_profile(self.get('profile', {}))
 
     def save_credentials(self, credentials):
         self.set('credentials', base64.b64encode(protect(json.dumps(credentials).encode())).decode())
