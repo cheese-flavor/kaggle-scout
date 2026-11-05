@@ -10,7 +10,7 @@ from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
     QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
-    QFileDialog, QSystemTrayIcon, QMenu, QSplitter)
+    QFileDialog, QSystemTrayIcon, QMenu, QSplitter, QSlider)
 from core import Store, Kaggle, DEFAULT, TOPICS, AUDIENCES, validate_profile, read_json_file, validate_credentials, assess, now, date, display_date, plain, slug
 from installation import data_directory, migrate_database
 
@@ -45,6 +45,11 @@ QTextBrowser { background: #ffffff; border: none; padding: 12px; }
 QScrollBar:vertical { background: transparent; width: 8px; margin: 3px; }
 QScrollBar::handle:vertical { background: #c8d8e5; min-height: 30px; border-radius: 3px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QSlider::groove:horizontal { height: 6px; background: #dfe9f2; border-radius: 3px; }
+QSlider::sub-page:horizontal { background: #20beff; border-radius: 3px; }
+QSlider::handle:horizontal { background: #ffffff; border: 2px solid #159cd2; width: 16px; margin: -7px 0; border-radius: 9px; }
+QSlider::handle:horizontal:focus { border: 3px solid #102c43; }
+QWidget#settingsFooter { background: #ffffff; border-top: 1px solid #dfe9f2; }
 '''
 
 def label(text, kind=None, wrap=False):
@@ -88,6 +93,67 @@ class SafeTextBrowser(QTextBrowser):
     def loadResource(self, resource_type, name):
         # Display only escaped text supplied by the app; never load local/remote resources.
         return None
+
+class SliderInput(QWidget):
+    """A slider for quick changes, plus exact input that preserves out-of-range values."""
+    valueChanged = Signal(int)
+
+    def __init__(self, name, minimum, maximum, value, suffix='', slider_max=None,
+                 stops=None, presets=(), low_label='', high_label=''):
+        super().__init__()
+        self.stops = list(stops) if stops else None
+        box = QVBoxLayout(self)
+        box.setContentsMargins(0, 0, 0, 0)
+        box.setSpacing(6)
+        row = QHBoxLayout()
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(0, len(self.stops) - 1) if self.stops else self.slider.setRange(minimum, slider_max or maximum)
+        self.slider.setAccessibleName(name + ' 슬라이더')
+        self.slider.setToolTip('방향키로 조절하거나 오른쪽에 정확한 값을 입력하세요.')
+        self.spinbox = QSpinBox()
+        self.spinbox.setRange(minimum, maximum)
+        self.spinbox.setSuffix(suffix)
+        self.spinbox.setAccessibleName(name + ' 정확한 값')
+        self.spinbox.setFixedWidth(118)
+        self.spinbox.setKeyboardTracking(False)
+        row.addWidget(self.slider, 1)
+        row.addWidget(self.spinbox)
+        box.addLayout(row)
+        if low_label or high_label:
+            legend = QHBoxLayout()
+            legend.addWidget(label(low_label, 'muted'))
+            legend.addStretch()
+            legend.addWidget(label(high_label, 'muted'))
+            box.addLayout(legend)
+        if presets:
+            chips = QHBoxLayout()
+            for number, text in presets:
+                b = button(text, lambda checked=False, n=number: self.setValue(n))
+                b.setAccessibleName(name + ' ' + text)
+                chips.addWidget(b)
+            chips.addStretch()
+            box.addLayout(chips)
+        self.slider.valueChanged.connect(self.from_slider)
+        self.spinbox.valueChanged.connect(self.from_number)
+        self.setValue(value)
+
+    def value(self):
+        return self.spinbox.value()
+
+    def setValue(self, value):
+        self.spinbox.setValue(value)
+        self.from_number(self.spinbox.value(), emit=False)
+
+    def from_slider(self, value):
+        self.spinbox.setValue(self.stops[value] if self.stops else value)
+
+    def from_number(self, value, emit=True):
+        self.slider.blockSignals(True)
+        position = min(range(len(self.stops)), key=lambda i: abs(self.stops[i] - value)) if self.stops else min(value, self.slider.maximum())
+        self.slider.setValue(position)
+        self.slider.blockSignals(False)
+        if emit:
+            self.valueChanged.emit(value)
 
 class Job(QThread):
     done = Signal(object)
@@ -274,6 +340,8 @@ class Window(QMainWindow):
             self.status.setText('현재 요청을 마친 뒤 종료할 수 있습니다.')
             self.quitting = False
         else:
+            self.timer.stop()
+            self.settings_preview_timer.stop()
             event.accept()
 
     def quit_app(self):
@@ -301,6 +369,7 @@ class Window(QMainWindow):
                 self.await_profile = True
                 self.navigate(3)
                 self.status.setText('기본 프로필을 확인하고 저장하면 첫 수집을 시작합니다.')
+                self.settings_status.setText('프로필을 확인한 뒤 저장하면 첫 수집을 시작합니다.')
             else:
                 self.refresh()
         elif not self.credentials:
@@ -339,6 +408,7 @@ class Window(QMainWindow):
         layout.addWidget(self.stats)
         filters = QHBoxLayout()
         self.search = QLineEdit()
+        self.search.setClearButtonEnabled(True)
         self.search.setPlaceholderText('대회명, 주제, 설명 검색…')
         self.search.textChanged.connect(self.reset_page)
         filters.addWidget(self.search, 1)
@@ -380,11 +450,15 @@ class Window(QMainWindow):
         self.detail.setOpenExternalLinks(False)
         d.addWidget(self.detail, 1)
         actions = QHBoxLayout()
-        actions.addWidget(button('☆ 관심', self.star))
-        actions.addWidget(button('숨기기 / 복원', self.hide_item))
+        self.star_button = button('☆ 관심', self.star)
+        self.hide_button = button('숨기기', self.hide_item)
+        actions.addWidget(self.star_button)
+        actions.addWidget(self.hide_button)
         d.addLayout(actions)
-        d.addWidget(button('참가 규칙 확인', self.load_pages))
-        d.addWidget(button('Kaggle 원문 열기 ↗', self.open_selected, True))
+        self.rules_button = button('참가 규칙 확인', self.load_pages)
+        self.original_button = button('Kaggle 원문 열기 ↗', self.open_selected, True)
+        d.addWidget(self.rules_button)
+        d.addWidget(self.original_button)
         split.addWidget(detail)
         split.setSizes([600, 370])
         layout.addWidget(split, 1)
@@ -423,6 +497,18 @@ class Window(QMainWindow):
         self.store.set('profile', profile)
         if hasattr(self, 'page_size_input'):
             self.page_size_input.setCurrentIndex(self.page_size_input.findData(size))
+        self.reset_page()
+
+    def clear_search_filters(self):
+        for w in (self.search, self.topic, self.sort, self.show_excluded, self.show_hidden):
+            w.blockSignals(True)
+        self.search.clear()
+        self.topic.setCurrentIndex(0)
+        self.sort.setCurrentIndex(0)
+        self.show_excluded.setChecked(False)
+        self.show_hidden.setChecked(False)
+        for w in (self.search, self.topic, self.sort, self.show_excluded, self.show_hidden):
+            w.blockSignals(False)
         self.reset_page()
 
     def render(self, *_):
@@ -471,9 +557,20 @@ class Window(QMainWindow):
         clear(self.cards)
         if not results:
             panel, p = card()
-            p.addWidget(label('새로운 도전을 기다리는 중', 'title'))
-            p.addWidget(label('계정을 연결하고 지금 확인을 눌러주세요.\n연결 후에도 목록이 비면 검색어와 제외 조건을 확인하세요.', 'muted', True))
-            p.addWidget(button('Kaggle 연결 설정', lambda: self.navigate(3)))
+            if rows and (query or self.topic.currentIndex()):
+                title, text, action, fn = '검색 결과가 없습니다', '검색어나 분야를 바꿔보세요.', '검색 조건 초기화', self.clear_search_filters
+            elif self.mode == 1 and not any(r['starred'] for r in rows):
+                title, text, action, fn = '관심 대회를 담아보세요', '대회 상세에서 관심 버튼을 누르면 여기에 모입니다.', '대회 탐색', lambda: self.navigate(0)
+            elif rows:
+                title, text, action, fn = '현재 조건에 맞는 대회가 없습니다', '참가 대상이나 추천 점수 조건을 조정해보세요.', '추천 조건 조정', lambda: self.navigate(3)
+            elif self.credentials:
+                title, text, action, fn = '대회를 확인해보세요', '지금 확인을 누르면 최신 목록을 가져옵니다.', '지금 확인', self.refresh
+            else:
+                title, text, action, fn = 'Kaggle을 연결해 주세요', '계정을 연결하면 관심 분야에 맞는 대회를 모아드립니다.', '계정 연결', self.connect_account
+            self.empty_title = title
+            p.addWidget(label(title, 'title'))
+            p.addWidget(label(text, 'muted', True))
+            p.addWidget(button(action, fn))
             self.cards.addWidget(panel)
         for row in results:
             item, v = row['item'], row['verdict']
@@ -506,9 +603,13 @@ class Window(QMainWindow):
     def select(self, ref):
         self.selected = ref
         row = self.selected_row()
+        for b in (self.star_button, self.hide_button, self.rules_button, self.original_button):
+            b.setEnabled(row is not None)
         if not row:
             self.detail.setHtml('<h2>대회 상세 정보</h2><p>대회를 선택하면 일정과 추천 이유를 확인할 수 있습니다.</p>')
             return
+        self.star_button.setText('★ 관심 해제' if row['starred'] else '☆ 관심')
+        self.hide_button.setText('숨김 해제' if row['hidden'] else '숨기기')
         item = json.loads(row['body'])
         v = assess(item, self.store.profile())
         esc = lambda x: html.escape(str(x or '확인 필요'))
@@ -584,7 +685,8 @@ class Window(QMainWindow):
         count, first, notices = result
         self.refresh_button.setEnabled(True)
         self.next_due = now() + timedelta(minutes=self.store.profile()['interval'])
-        self.status.setText(f"마지막 성공 {display_date(self.store.get('last_success'))} · {count}개 확인 · 다음 확인 {display_date(self.next_due.isoformat())}")
+        self.status.setText(f"최근 확인 {display_date(self.store.get('last_success'))} · {count}개")
+        self.status.setToolTip('다음 확인: ' + display_date(self.next_due.isoformat()))
         self.render()
         if first:
             self.notify('첫 수집 완료', f'{count}개 대회를 확인했습니다. 추천 목록에서 관심 대회를 선택하세요.')
@@ -653,6 +755,7 @@ class Window(QMainWindow):
 
     def build_settings(self):
         scroll = QScrollArea()
+        self.settings_scroll = scroll
         scroll.setWidgetResizable(True)
         page = QWidget()
         box = QVBoxLayout(page)
@@ -702,10 +805,9 @@ class Window(QMainWindow):
         self.skills_input.setMaxLength(250)
         self.gpu_input = QLineEdit(p['gpu'])
         self.gpu_input.setMaxLength(120)
-        self.vram_input = QSpinBox()
-        self.vram_input.setRange(0, 512)
-        self.vram_input.setSuffix(' GB')
-        self.vram_input.setValue(p['vram'])
+        self.vram_input = SliderInput('GPU VRAM', 0, 512, p['vram'], ' GB', slider_max=64,
+                                     presets=[(8, '8GB'), (16, '16GB'), (24, '24GB'), (32, '32GB')],
+                                     low_label='GPU 없음', high_label='64GB · 더 큰 용량은 직접 입력')
         for n, (name, widget) in enumerate([('프로필 이름', self.name_input), ('보유 기술', self.skills_input), ('GPU 이름 (없으면 없음)', self.gpu_input), ('GPU VRAM', self.vram_input)]):
             fields.addWidget(label(name, 'muted'), n, 0)
             fields.addWidget(widget, n, 1)
@@ -728,19 +830,16 @@ class Window(QMainWindow):
         self.keywords = QLineEdit(', '.join(p['exclude_keywords']))
         self.keywords.setPlaceholderText('추가 제외 키워드, 쉼표로 구분')
         f.addWidget(self.keywords)
-        row = QHBoxLayout()
-        row.addWidget(label('확인 주기', 'muted'))
-        self.interval = QSpinBox()
-        self.interval.setRange(15, 1440)
-        self.interval.setSuffix(' 분')
-        self.interval.setValue(p['interval'])
-        row.addWidget(self.interval)
-        row.addWidget(label('최소 탐색 점수', 'muted'))
-        self.threshold = QSpinBox()
-        self.threshold.setRange(0, 100)
-        self.threshold.setValue(p['min_score'])
-        row.addWidget(self.threshold)
-        f.addLayout(row)
+        f.addWidget(label('확인 주기', 'muted'))
+        self.interval = SliderInput('확인 주기', 15, 1440, p['interval'], ' 분',
+                                    stops=[15, 30, 60, 120, 180, 360, 720, 1440],
+                                    low_label='15분', high_label='하루',
+                                    presets=[(30, '30분'), (60, '1시간'), (180, '3시간'), (360, '6시간')])
+        f.addWidget(self.interval)
+        f.addWidget(label('추천 범위', 'muted'))
+        self.threshold = SliderInput('최소 탐색 점수', 0, 100, p['min_score'], ' 점',
+                                     low_label='폭넓게 보기', high_label='관심 분야 중심')
+        f.addWidget(self.threshold)
         page_row = QHBoxLayout()
         page_row.addWidget(label('페이지당 표시 개수', 'muted'))
         self.page_size_input = QComboBox()
@@ -752,16 +851,48 @@ class Window(QMainWindow):
         f.addLayout(page_row)
         f.addWidget(label('PC와 앱이 실행 중일 때 확인합니다.', 'muted'))
         box.addWidget(filters)
-        bottom = QHBoxLayout()
-        bottom.addWidget(button('프로필 내보내기', self.export_profile))
-        bottom.addWidget(button('프로필 가져오기', self.import_profile))
-        bottom.addStretch()
-        bottom.addWidget(button('설정 저장하고 대회 확인 →', self.save_settings, True))
-        box.addLayout(bottom)
-        self.settings_status = label('인증 정보와 수집 기록은 프로필 내보내기에 포함되지 않습니다.', 'muted', True)
-        box.addWidget(self.settings_status)
         scroll.setWidget(page)
-        self.pages.addWidget(scroll)
+        container = QWidget()
+        outer = QVBoxLayout(container)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        outer.addWidget(scroll, 1)
+        footer = QWidget()
+        footer.setObjectName('settingsFooter')
+        bottom = QHBoxLayout(footer)
+        bottom.setContentsMargins(22, 12, 22, 12)
+        self.settings_status = label('저장된 설정입니다.', 'muted', True)
+        bottom.addWidget(self.settings_status, 1)
+        bottom.addWidget(button('내보내기', self.export_profile))
+        bottom.addWidget(button('가져오기', self.import_profile))
+        bottom.addWidget(button('설정 저장', self.save_settings, True))
+        outer.addWidget(footer)
+        self.pages.addWidget(container)
+        self.settings_preview_timer = QTimer(self)
+        self.settings_preview_timer.setSingleShot(True)
+        self.settings_preview_timer.timeout.connect(self.preview_settings)
+        for edit in (self.name_input, self.skills_input, self.gpu_input, self.keywords):
+            edit.textChanged.connect(self.queue_settings_preview)
+        for control in (self.vram_input, self.interval, self.threshold):
+            control.valueChanged.connect(self.queue_settings_preview)
+        for check in [*self.topic_checks.values(), *self.audience_checks.values(), self.unknown_audience,
+                      self.paid, self.offline, self.notifications, self.autostart]:
+            check.toggled.connect(self.queue_settings_preview)
+        self.page_size_input.currentIndexChanged.connect(self.queue_settings_preview)
+
+    def queue_settings_preview(self, *_):
+        self.settings_preview_timer.start(150)
+
+    def preview_settings(self):
+        try:
+            p = self.read_form()
+        except ValueError:
+            self.settings_status.setText('입력값을 확인해 주세요.')
+            return
+        rows = [r for r in self.store.rows() if not r['hidden']]
+        candidates = sum(not (v := assess(json.loads(r['body']), p))['excluded'] and v['score'] >= p['min_score'] for r in rows)
+        changed = p != self.store.profile() or self.autostart.isChecked() != self.autostart_enabled()
+        self.settings_status.setText(('저장 전' if changed else '저장됨') + (f' · 현재 목록에서 추천 후보 {candidates}개' if rows else ' · 수집 후 추천 후보를 확인할 수 있습니다.'))
 
     def read_form(self):
         p = self.store.profile()
@@ -808,11 +939,14 @@ class Window(QMainWindow):
         except ValueError:
             self.settings_status.setText('입력값을 확인하세요. 제외 키워드는 50개 이하, 각 80자 이하입니다.')
             return
+        start_first_collection = self.await_profile and self.credentials is not None
+        self.settings_preview_timer.stop()
         self.store.set('profile', p)
         self.display_size.blockSignals(True)
         self.display_size.setCurrentIndex(self.display_size.findData(p['page_size']))
         self.display_size.blockSignals(False)
         self.await_profile = False
+        self.next_due = now() + timedelta(minutes=p['interval'])
         if os.name == 'nt' and not self.preview:
             import winreg
             try:
@@ -828,9 +962,11 @@ class Window(QMainWindow):
             except OSError:
                 self.settings_status.setText('프로필은 저장했지만 자동 시작 등록에 실패했습니다.')
                 return
-        self.settings_status.setText('설정이 저장되었습니다.')
-        self.navigate(0)
-        self.refresh()
+        self.settings_status.setText('설정을 저장했습니다. 추천 목록에 적용되었습니다.')
+        self.render()
+        if start_first_collection:
+            self.navigate(0)
+            self.refresh()
 
     def export_profile(self):
         path, _ = QFileDialog.getSaveFileName(self, '개인 프로필 내보내기', 'scout-profile.json', 'JSON (*.json)')

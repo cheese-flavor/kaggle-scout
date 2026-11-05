@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
+from PySide6.QtCore import Qt
 from app import Connect, Window, STYLE
 from core import Store, Kaggle
 from test_core import item
@@ -96,6 +97,64 @@ class UITests(unittest.TestCase):
         p = self.store.profile()
         self.assertEqual(p['audiences'], ['university'])
         self.assertFalse(p['include_unknown_audience'])
+
+    def test_slider_exact_values_and_large_vram_survive(self):
+        control = self.window.vram_input
+        control.slider.setValue(24)
+        self.assertEqual(control.value(), 24)
+        control.setValue(128)
+        self.assertEqual(control.value(), 128)
+        self.assertEqual(control.slider.value(), 64)
+        self.assertEqual(self.window.read_form()['vram'], 128)
+        control.setValue(17)
+        self.assertEqual(control.slider.value(), 17)
+        QTest.keyClick(control.slider, Qt.Key.Key_Right)
+        self.assertEqual(control.value(), 18)
+
+    def test_interval_slider_keeps_custom_numeric_value(self):
+        control = self.window.interval
+        control.slider.setValue(2)
+        self.assertEqual(control.value(), 60)
+        control.setValue(90)
+        self.assertEqual(self.window.read_form()['interval'], 90)
+
+    def test_candidate_preview_uses_unsaved_draft_without_network(self):
+        self.store.sync([item('large', description='Requires 24 GB VRAM.', deadline='2099-12-01T00:00:00Z')], self.store.profile())
+        self.window.vram_input.setValue(16)
+        self.window.preview_settings()
+        self.assertIn('추천 후보 0개', self.window.settings_status.text())
+        self.window.vram_input.setValue(32)
+        self.window.preview_settings()
+        self.assertIn('저장 전', self.window.settings_status.text())
+        self.assertIn('추천 후보 1개', self.window.settings_status.text())
+        self.assertEqual(self.store.profile()['vram'], 16)
+
+    def test_normal_save_stays_in_settings_and_does_not_refresh(self):
+        self.window.navigate(3)
+        self.window.vram_input.setValue(24)
+        with patch.object(self.window, 'refresh') as refresh:
+            self.window.save_settings()
+            refresh.assert_not_called()
+        self.assertEqual(self.window.mode, 3)
+        self.assertEqual(self.store.profile()['vram'], 24)
+
+    def test_onboarding_save_still_starts_first_collection(self):
+        self.window.await_profile = True
+        self.window.credentials = {'token': 'fixture-only'}
+        with patch.object(self.window, 'refresh') as refresh:
+            self.window.save_settings()
+            refresh.assert_called_once()
+        self.assertFalse(self.window.await_profile)
+        self.assertEqual(self.window.mode, 0)
+
+    def test_search_empty_state_has_recovery_and_no_dead_actions(self):
+        self.store.sync([item(deadline='2099-12-01T00:00:00Z')], self.store.profile())
+        self.window.search.setText('nonexistent')
+        self.assertEqual(self.window.empty_title, '검색 결과가 없습니다')
+        self.assertFalse(self.window.original_button.isEnabled())
+        self.window.clear_search_filters()
+        self.assertEqual(self.window.current_page_refs, ['example'])
+        self.assertTrue(self.window.original_button.isEnabled())
 
 if __name__ == '__main__':
     unittest.main()
