@@ -3,6 +3,7 @@ preview-data/
 work/
 build/
 dist/
+releases/
 .venv/
 __pycache__/
 *.pyc

@@ -64,9 +64,12 @@ python app.py
 python -m unittest -v
 .\build.ps1
 .\verify-build.ps1
+.\package.ps1
 ```
 
 `python app.py --preview`는 별도 `preview-data` 폴더에서 네트워크 없이 UI를 확인합니다. 기본적으로 가짜 대회를 넣지 않습니다. `SCOUT_DATA_DIR` 환경변수로 별도 데이터 폴더를 지정할 수 있습니다.
+
+`package.ps1`은 실행 파일과 `_internal` 런타임만 명시적으로 복사하여 `releases/KaggleScout-v0.1.1-windows-x64.zip`을 만듭니다. 개인 데이터·인증·테스트 저장소는 배포 ZIP에 포함하지 않습니다. ZIP을 푼 뒤 안쪽 `KaggleScout.exe`를 실행합니다. Python을 별도로 설치할 필요가 없습니다.
 
 구조: `core.py` 수집·추천·SQLite·DPAPI / `app.py` Qt UI·첫 연결·주기 관리·트레이 / `assets/` 아이콘·폰트 / `test_core.py` 핵심 로직 테스트.
 
@@ -91,3 +94,4 @@ python -m unittest -v
 | 2026-11-05 | 0.1.0 · 최초 구현 (`396e175`) | Kaggle 첫 연결, DPAPI 인증 저장, 주기 수집, 개인 프로필, 관심·숨김, 변경·마감 알림, 검색·필터, Qt UI, 아이콘, Figma 디자인 | 핵심·UI 테스트 15개 통과. 소스 UI와 창 크기별 화면 점검. Windows 빌드 성공. 실계정 인증은 최초 실행에서 확인 필요 |
 | 2026-11-05 | 0.1.0 · 관리 문서 정리 | 작업 단위별 커밋 규칙, 버전·변경·검증 로그 도입. 최초 구현 이력 유지 | GitHub 비공개 저장소와 소스 파일 목록 확인. 인증·개인 기록 제외 규칙 적용 |
 | 2026-11-05 | 0.1.1 · 실행 파일 DLL 충돌 수정 | 최초 배포 검증에서 QtCore 로드 실패 확인. PATH의 외부 Poppler ICU DLL이 섞인 것이 원인. Python·Windows 경로로 한정한 클린 빌드로 변경. 실행 파일 전용 검증 스크립트 추가 | `verify-build.ps1` 통과: 새 실행 파일이 실제 GUI를 렌더링하고 종료 코드 0으로 종료. 충돌 ICU DLL 미포함 확인. 실계정 인증은 최초 연결에서 확인 필요 |
+| 2026-11-05 | 0.1.1 · Windows 배포 패키지 | 개인 데이터가 포함되지 않는 ZIP 생성 스크립트와 배포용 시작 안내 추가. 바탕화면 바로가기 제공. GitHub 비공개 배포 버전 관리 | 배포 ZIP 파일 목록·SHA256 확인. 실행 파일 직접 구동 검증 통과. 인증·수집 DB는 배포 대상에서 제외 |
