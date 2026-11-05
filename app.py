@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabe
     QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
     QFileDialog, QSystemTrayIcon, QMenu, QSplitter)
-from core import Store, Kaggle, DEFAULT, TOPICS, AUDIENCES, migrate_profile, assess, now, date, display_date, plain, slug
+from core import Store, Kaggle, DEFAULT, TOPICS, AUDIENCES, validate_profile, read_json_file, validate_credentials, assess, now, date, display_date, plain, slug
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
@@ -47,7 +47,9 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 '''
 
 def label(text, kind=None, wrap=False):
-    w = QLabel(text)
+    w = QLabel()
+    w.setTextFormat(Qt.TextFormat.PlainText)
+    w.setText(str(text))
     if kind:
         w.setObjectName(kind)
     w.setWordWrap(wrap)
@@ -76,6 +78,16 @@ def clear(layout):
         elif entry.layout():
             clear(entry.layout())
 
+class SafeTextBrowser(QTextBrowser):
+    def __init__(self):
+        super().__init__()
+        self.setOpenLinks(False)
+        self.setOpenExternalLinks(False)
+
+    def loadResource(self, resource_type, name):
+        # Display only escaped text supplied by the app; never load local/remote resources.
+        return None
+
 class Job(QThread):
     done = Signal(object)
     failed = Signal(str)
@@ -91,6 +103,8 @@ class Job(QThread):
             # Never surface raw HTTP bodies, headers, or credentials.
             text = str(e) if isinstance(e, RuntimeError) else '처리 중 오류가 발생했습니다. 연결과 저장 폴더를 확인하세요.'
             self.failed.emit(text)
+        finally:
+            self.fn = None
 
 class Connect(QDialog):
     def __init__(self, store, parent):
@@ -107,6 +121,7 @@ class Connect(QDialog):
         panel, fields = card()
         fields.addWidget(label('Kaggle 개인 API 토큰', 'title'))
         self.token = QLineEdit()
+        self.token.setMaxLength(8192)
         self.token.setPlaceholderText('Kaggle 설정에서 생성한 API token')
         self.token.setEchoMode(QLineEdit.EchoMode.Password)
         fields.addWidget(self.token)
@@ -119,17 +134,16 @@ class Connect(QDialog):
         self.submit = button('연결 확인하고 시작하기 →', self.connect_token, True)
         box.addWidget(self.submit)
         self.credentials = None
+        self.finished.connect(lambda _: self.token.clear())
 
     def import_legacy(self):
         path, _ = QFileDialog.getOpenFileName(self, 'kaggle.json 선택', '', 'JSON (*.json)')
         if not path:
             return
         try:
-            value = json.loads(Path(path).read_text(encoding='utf-8-sig'))
-            if not isinstance(value, dict) or not value.get('username') or not value.get('key'):
-                raise ValueError()
-            self.verify({'username': value['username'], 'key': value['key']})
-        except (ValueError, OSError):
+            value = validate_credentials(read_json_file(path))
+            self.verify(value)
+        except (ValueError, OSError, RecursionError):
             self.status.setText('username과 key가 들어 있는 Kaggle 인증 JSON을 선택하세요.')
 
     def connect_token(self):
@@ -290,6 +304,7 @@ class Window(QMainWindow):
                 self.refresh()
         elif not self.credentials:
             self.status.setText('연결 대기 · 나의 설정에서 Kaggle을 연결하세요.')
+        dlg.deleteLater()
 
     def navigate(self, index):
         self.mode = index
@@ -358,7 +373,7 @@ class Window(QMainWindow):
         detail.setMinimumWidth(290)
         d.setContentsMargins(16, 16, 16, 16)
         d.addWidget(label('대회 정보', 'title'))
-        self.detail = QTextBrowser()
+        self.detail = SafeTextBrowser()
         self.detail.document().setDefaultStyleSheet('body {font-family: Pretendard; font-size:14px; color:#23364b;} h2 {font-size:21px; font-weight:600; margin-bottom:16px;} h3 {font-size:16px; font-weight:600; margin-top:22px;} p {line-height:145%; margin-bottom:12px;}')
         self.detail.setMinimumHeight(140)
         self.detail.setOpenExternalLinks(False)
@@ -529,7 +544,8 @@ class Window(QMainWindow):
 
     def open_selected(self):
         if self.selected:
-            QDesktopServices.openUrl(QUrl('https://www.kaggle.com/competitions/' + self.selected))
+            ref = slug({'ref': self.selected})
+            QDesktopServices.openUrl(QUrl('https://www.kaggle.com/competitions/' + ref))
 
     def busy(self):
         return self.job and self.job.isRunning()
@@ -624,7 +640,7 @@ class Window(QMainWindow):
         box.setContentsMargins(32, 32, 32, 32)
         box.addWidget(label('알림 기록', 'heading'))
         box.addWidget(label('새 추천 · 관심 대회 정보 변경 · 마감 7일 / 3일 / 1일 전', 'muted'))
-        self.events = QTextBrowser()
+        self.events = SafeTextBrowser()
         self.events.document().setDefaultStyleSheet('body {font-family:Pretendard; font-size:14px;} h3 {font-size:17px; font-weight:600;}')
         box.addWidget(self.events)
         self.pages.addWidget(page)
@@ -647,6 +663,7 @@ class Window(QMainWindow):
         self.connection_label = label('저장된 연결 있음' if self.store.get('credentials') else '아직 연결되지 않았습니다.', 'muted')
         c.addWidget(self.connection_label)
         c.addWidget(button('계정 연결 / 다시 연결', self.connect_account))
+        c.addWidget(button('연결 해제', self.disconnect_account))
         box.addWidget(connection)
         interests, i = card()
         i.addWidget(label('관심 분야', 'title'))
@@ -679,8 +696,11 @@ class Window(QMainWindow):
         h.addWidget(label('사용 가능한 환경', 'title'))
         fields = QGridLayout()
         self.name_input = QLineEdit(p['name'])
+        self.name_input.setMaxLength(100)
         self.skills_input = QLineEdit(p['skills'])
+        self.skills_input.setMaxLength(250)
         self.gpu_input = QLineEdit(p['gpu'])
+        self.gpu_input.setMaxLength(120)
         self.vram_input = QSpinBox()
         self.vram_input.setRange(0, 512)
         self.vram_input.setSuffix(' GB')
@@ -756,7 +776,19 @@ class Window(QMainWindow):
                  min_score=self.threshold.value(),
                  page_size=self.page_size_input.currentData(),
                  exclude_keywords=[k.strip() for k in self.keywords.text().split(',') if k.strip()])
-        return p
+        return validate_profile(p)
+
+    def disconnect_account(self):
+        if self.busy():
+            self.connection_label.setText('현재 조회가 끝난 뒤 연결을 해제할 수 있습니다.')
+            return
+        answer = QMessageBox.question(self, 'Kaggle 연결 해제', '이 PC에 저장한 인증 정보를 삭제할까요?\n관심 대회와 수집 기록은 유지됩니다.', QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.store.clear_credentials()
+        self.credentials = None
+        self.connection_label.setText('연결이 해제되었습니다.')
+        self.status.setText('Kaggle 연결 대기')
 
     def autostart_enabled(self):
         if os.name != 'nt':
@@ -770,7 +802,11 @@ class Window(QMainWindow):
             return False
 
     def save_settings(self):
-        p = self.read_form()
+        try:
+            p = self.read_form()
+        except ValueError:
+            self.settings_status.setText('입력값을 확인하세요. 제외 키워드는 50개 이하, 각 80자 이하입니다.')
+            return
         self.store.set('profile', p)
         self.display_size.blockSignals(True)
         self.display_size.setCurrentIndex(self.display_size.findData(p['page_size']))
@@ -801,7 +837,7 @@ class Window(QMainWindow):
             try:
                 Path(path).write_text(json.dumps(self.read_form(), indent=2, ensure_ascii=False), encoding='utf8')
                 self.settings_status.setText('프로필을 내보냈습니다. 인증 정보는 포함되지 않습니다.')
-            except OSError:
+            except (OSError, ValueError):
                 self.settings_status.setText('프로필 파일을 저장하지 못했습니다.')
 
     def import_profile(self):
@@ -809,21 +845,7 @@ class Window(QMainWindow):
         if not path:
             return
         try:
-            p = json.loads(Path(path).read_text(encoding='utf-8-sig'))
-            if not isinstance(p, dict):
-                raise ValueError()
-            for k in DEFAULT:
-                if k in p and type(p[k]) is not type(DEFAULT[k]):
-                    raise ValueError()
-            p = migrate_profile({k: p[k] for k in DEFAULT if k in p})
-            if not (15 <= p['interval'] <= 1440 and 0 <= p['vram'] <= 512 and 0 <= p['min_score'] <= 100):
-                raise ValueError()
-            if p['page_size'] not in (5, 10, 20, 50):
-                raise ValueError()
-            if not all(isinstance(x, str) for x in p['exclude_keywords']) or not all(x in TOPICS for x in p['topics']):
-                raise ValueError()
-            if not all(x in AUDIENCES for x in p['audiences']):
-                raise ValueError()
+            p = validate_profile(read_json_file(path))
             self.name_input.setText(p['name'])
             self.skills_input.setText(p['skills'])
             self.gpu_input.setText(p['gpu'])
@@ -841,7 +863,7 @@ class Window(QMainWindow):
             for name, chk in self.topic_checks.items():
                 chk.setChecked(name in p['topics'])
             self.settings_status.setText('프로필을 불러왔습니다. 설정 저장을 눌러 적용하세요.')
-        except (ValueError, OSError, TypeError):
+        except (ValueError, OSError, TypeError, RecursionError):
             self.settings_status.setText('지원하는 프로필 JSON 파일이 아닙니다.')
 
 def main():

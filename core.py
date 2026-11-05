@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import copy
+import time
 from datetime import datetime, timezone, timedelta
 import requests
 
@@ -35,7 +37,47 @@ def migrate_profile(value):
     value = dict(value)
     if 'audiences' not in value:
         value['audiences'] = ['general'] if value.get('exclude_students', True) else list(AUDIENCES)
-    return {**DEFAULT, **value}
+    return {**copy.deepcopy(DEFAULT), **value}
+
+def validate_profile(value):
+    if not isinstance(value, dict):
+        raise ValueError('프로필 형식 오류')
+    for key in DEFAULT:
+        if key in value and type(value[key]) is not type(DEFAULT[key]):
+            raise ValueError('프로필 값 형식 오류')
+    profile = migrate_profile({k: value[k] for k in DEFAULT if k in value})
+    if not (15 <= profile['interval'] <= 1440 and 0 <= profile['vram'] <= 512 and 0 <= profile['min_score'] <= 100):
+        raise ValueError('프로필 범위 오류')
+    if profile['page_size'] not in (5, 10, 20, 50):
+        raise ValueError('페이지 크기 오류')
+    for key, allowed in [('topics', TOPICS), ('audiences', AUDIENCES)]:
+        if not all(isinstance(x, str) and x in allowed for x in profile[key]) or len(profile[key]) > len(allowed):
+            raise ValueError('프로필 선택값 오류')
+    words = profile['exclude_keywords']
+    if len(words) > 50 or not all(isinstance(x, str) and len(x) <= 80 for x in words):
+        raise ValueError('제외 키워드 길이 오류')
+    for key, maximum in [('name', 100), ('gpu', 120), ('skills', 250)]:
+        if len(profile[key]) > maximum:
+            raise ValueError('프로필 텍스트 길이 오류')
+    if not all(isinstance(x, str) and len(x) <= 80 for x in profile['purposes']) or len(profile['purposes']) > 20:
+        raise ValueError('참가 목적 형식 오류')
+    return profile
+
+def read_json_file(path, maximum=65536):
+    with Path(path).open('rb') as stream:
+        raw = stream.read(maximum + 1)
+    if len(raw) > maximum:
+        raise ValueError('파일 크기 초과')
+    return json.loads(raw.decode('utf-8-sig'))
+
+def validate_credentials(value):
+    if not isinstance(value, dict):
+        raise ValueError('인증 형식 오류')
+    fields = ['token'] if value.get('token') else ['username', 'key']
+    if any(not isinstance(value.get(k), str) or not value[k] or len(value[k]) > 8192 or
+           any(ord(c) < 32 or ord(c) == 127 for c in value[k]) for k in fields):
+        raise ValueError('인증 값 오류')
+    return {key: value[key] for key in fields}
 
 def detect_audience(text):
     university = re.search(r'(?:(?:university|college|graduate) students only|(?:open|available) only to (?:university|college|graduate) students|대학(?:원)?생\s*(?:전용|만\s*참가))', text)
@@ -201,16 +243,29 @@ class Store:
             con.execute('INSERT OR REPLACE INTO meta VALUES(?,?)', (key, json.dumps(value, ensure_ascii=False)))
 
     def profile(self):
-        return migrate_profile(self.get('profile', {}))
+        try:
+            return validate_profile(self.get('profile', {}))
+        except (ValueError, TypeError, RecursionError):
+            # Keep the damaged record intact; recover the UI with safe defaults.
+            return copy.deepcopy(DEFAULT)
 
     def save_credentials(self, credentials):
-        self.set('credentials', base64.b64encode(protect(json.dumps(credentials).encode())).decode())
+        value = validate_credentials(credentials)
+        self.set('credentials', base64.b64encode(protect(json.dumps(value).encode())).decode())
 
     def credentials(self):
-        value = self.get('credentials')
-        if not value:
-            return None
-        return json.loads(protect(base64.b64decode(value), True))
+        try:
+            value = self.get('credentials')
+            if not value:
+                return None
+            return validate_credentials(json.loads(protect(base64.b64decode(value, validate=True), True)))
+        except (ValueError, TypeError, RecursionError):
+            raise RuntimeError('저장된 인증 정보를 확인할 수 없습니다. 이 PC에서 다시 연결하세요.') from None
+
+    def clear_credentials(self):
+        with self.connect() as con:
+            con.execute('PRAGMA secure_delete=ON')
+            con.execute("DELETE FROM meta WHERE key='credentials'")
 
     def rows(self):
         with self.connect() as con:
@@ -267,11 +322,17 @@ class Store:
 
 class Kaggle:
     BASE = 'https://api.kaggle.com/v1/competitions.CompetitionApiService/'
+    MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
     def __init__(self, credentials):
         if not credentials:
             raise RuntimeError('최초 연결에서 Kaggle 인증을 설정하세요.')
+        try:
+            credentials = validate_credentials(credentials)
+        except ValueError:
+            raise RuntimeError('Kaggle 인증 형식이 올바르지 않습니다.') from None
         self.session = requests.Session()
+        self.session.trust_env = False  # Do not load ambient .netrc credentials or proxy settings.
         self.session.headers['User-Agent'] = 'KaggleScout/1.0 personal-local-monitor'
         if credentials.get('token'):
             self.session.headers['Authorization'] = 'Bearer ' + credentials['token']
@@ -279,19 +340,32 @@ class Kaggle:
             self.session.auth = (credentials['username'], credentials['key'])
 
     def call(self, method, body):
+        if method not in ('ListCompetitions', 'ListCompetitionPages'):
+            raise RuntimeError('허용되지 않은 Kaggle 조회 요청입니다.')
         try:
-            response = self.session.post(self.BASE + method, json=body, timeout=(10, 35))
-            if response.status_code in (401, 403):
-                raise RuntimeError('Kaggle 인증 또는 접근 권한을 확인하세요. 설정에서 다시 연결할 수 있습니다.')
-            if response.status_code == 429:
-                raise RuntimeError('Kaggle 요청 제한입니다. 다음 확인 주기에 다시 시도합니다.')
-            response.raise_for_status()
-            data = response.json()
+            with self.session.post(self.BASE + method, json=body, timeout=(10, 35),
+                                   allow_redirects=False, verify=True, stream=True) as response:
+                if response.status_code in (401, 403):
+                    raise RuntimeError('Kaggle 인증 또는 접근 권한을 확인하세요. 설정에서 다시 연결할 수 있습니다.')
+                if response.status_code == 429:
+                    raise RuntimeError('Kaggle 요청 제한입니다. 다음 확인 주기에 다시 시도합니다.')
+                if 300 <= response.status_code < 400:
+                    raise RuntimeError('Kaggle API 주소 변경 응답을 차단했습니다.')
+                response.raise_for_status()
+                raw = bytearray()
+                started = time.monotonic()
+                for chunk in response.iter_content(65536):
+                    raw.extend(chunk)
+                    if len(raw) > self.MAX_RESPONSE_BYTES or time.monotonic() - started > 60:
+                        raise RuntimeError('Kaggle 응답 한도를 초과했습니다. 기존 기록을 유지합니다.')
+                data = json.loads(raw)
             if not isinstance(data, dict) or data.get('error'):
                 raise RuntimeError('Kaggle 응답 형식 또는 API 오류입니다.')
             return data
         except requests.RequestException:
             raise RuntimeError('Kaggle 연결에 실패했습니다. 인터넷 상태를 확인하세요.') from None
+        except (ValueError, RecursionError):
+            raise RuntimeError('Kaggle 응답 형식이 올바르지 않습니다.') from None
 
     def collect(self):
         # Token pagination, with a bounded safety cap. No partial success is committed.
@@ -312,6 +386,8 @@ class Kaggle:
             if not isinstance(batch, list):
                 raise RuntimeError('대회 목록 형식이 올바르지 않습니다.')
             for item in batch:
+                if not isinstance(item, dict):
+                    raise RuntimeError('대회 항목 형식이 올바르지 않습니다.')
                 ref = slug(item)
                 if ref not in seen_refs:
                     items.append(item)
@@ -325,5 +401,9 @@ class Kaggle:
         raise RuntimeError('조회 페이지 한도를 초과했습니다. 기존 기록을 유지합니다.')
 
     def pages(self, ref):
+        ref = slug({'ref': ref})
         data = self.call('ListCompetitionPages', {'competitionName': ref})
-        return data.get('pages', [])
+        pages = data.get('pages', [])
+        if not isinstance(pages, list) or not all(isinstance(p, dict) for p in pages):
+            raise RuntimeError('대회 규칙 응답 형식이 올바르지 않습니다.')
+        return pages
