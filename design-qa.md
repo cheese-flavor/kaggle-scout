@@ -88,4 +88,4 @@ The summary/full tabs and their More actions are removed. One escaped rich-text 
 
 89 regression checks pass. Four new checks verify preservation of supplied metadata and a zero team count, escaped external markup, explicit education/exclusion/unknown states, and bookmark reading-position retention plus reset on selecting another competition. The former compact-view test now checks all information without a view switch. Token privacy, real-account permissions, another display's DPI and full accessibility compliance are not inferred from these captures.
 
-v0.9.0 packaged verification: clean build starts/renders/exits successfully with isolated preview data. Installation is pending the running v0.8.1 app closing.
+v0.9.0 packaged verification: clean build starts/renders/exits successfully with isolated preview data. After the user closed v0.8.1, v0.9.0 installation completed. The installed executable also renders and exits normally with isolated data. Desktop/Start menu targets and executable metadata resolve to 0.9.0; user DB existence and SHA256 remain unchanged after installation.
