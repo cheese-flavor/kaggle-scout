@@ -79,3 +79,13 @@ Current fixture captures: `docs/dashboard-v081.png`, `docs/bookmarks-v081.png` (
 The first minimum-size pass clipped the bookmark label; reducing horizontal padding in the compact footer resolved it. The final 960 × 680 capture was opened and inspected with both labels readable and the primary action unobstructed. Normal discovery and bookmark captures were also inspected. The existing 85 regression checks pass, including compact information switching and bookmark/deletion/restore behavior. No new screenshot-only test was added for this layout change.
 
 v0.8.1 direct interaction check: no QPushButton remains in list cards; the common footer toggles bookmarks from summary and full information and deletes into trash at compact size. Clean build and installed executable both render and exit normally in isolated preview data. Shortcuts and metadata resolve to 0.8.1; existing user DB existence and SHA256 remain unchanged after installation.
+
+## v0.9.0 · One full-information document
+
+Actual current fixture captures: `docs/dashboard-v090.png`, `docs/detail-information-v090.png`, `docs/bookmarks-v090.png` at 1180 × 820; minimum education at 960 × 680; deadline examples at 1180 × 1058. The first and scrolled detail views, minimum window and deadline state were opened and inspected. These use fictional data; no real account is captured. Existing gallery images remain unchanged.
+
+The summary/full tabs and their More actions are removed. One escaped rich-text document presents the title/topic/description, highlighted final deadline, calendar dates, participation/submission metadata, eligibility/GPU/API, recommendation reasons, exclusions, additional rules and last-check record. Labels and values occupy separate columns; values/body are 17px, labels 14px, section titles 18px. Word-boundary-or-anywhere wrapping prevents long unbroken text from forcing horizontal clipping. The existing footer actions remain directly accessible and separate from scrolling content.
+
+89 regression checks pass. Four new checks verify preservation of supplied metadata and a zero team count, escaped external markup, explicit education/exclusion/unknown states, and bookmark reading-position retention plus reset on selecting another competition. The former compact-view test now checks all information without a view switch. Token privacy, real-account permissions, another display's DPI and full accessibility compliance are not inferred from these captures.
+
+v0.9.0 packaged verification: clean build starts/renders/exits successfully with isolated preview data. Installation is pending the running v0.8.1 app closing.
