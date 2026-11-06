@@ -35,3 +35,5 @@ This is a faithful adaptation of the selected direction, not a pixel-identical r
 `python -m unittest -q`: **51 tests passed**. New checks cover recommended/all/LLM–NLP chips, keyboard card selection, independent bookmarking, shared settings across tabs, local icon rendering, and compact-window controls. Existing collection, exclusion, notification, storage, and safety regression checks also pass.
 
 This does not establish full accessibility compliance, high-DPI behavior on another display, real-account permissions, or delivery of Windows notifications. Those remain separate verification items in `ROADMAP.md`.
+
+Packaged verification: clean PyInstaller build and installed v0.5.0 both render the native GUI and exit successfully with isolated preview data. The packaged empty state was visually inspected. Desktop shortcut and executable metadata point to 0.5.0; user DB existence and SHA256 remain unchanged after installation.
