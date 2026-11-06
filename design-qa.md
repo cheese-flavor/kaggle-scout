@@ -70,4 +70,4 @@ All eight semantic ink/surface pairs were calculated at approximately 5.30–6.2
 
 85 tests pass, including a new tray interaction check that opens the window, calls quit, and does not refresh. Notification target/time/queue semantics are unchanged; the settings now explain new recommendations versus bookmarked changes/deadlines. Actual Windows notification delivery, another display's DPI and assistive technologies remain outside this validation scope.
 
-v0.8.0 packaged verification: clean build starts, renders and exits normally with isolated preview data. The packaged empty state was inspected. Local installation is pending the running v0.7.0 app closing.
+v0.8.0 packaged verification: clean build starts, renders and exits normally with isolated preview data. The packaged empty state was inspected. After the user closed v0.7.0, local v0.8.0 installation completed. The installed executable also renders and exits normally with isolated data. Desktop and Start menu shortcuts and executable metadata resolve to 0.8.0; user DB existence and SHA256 remain unchanged after installation.
