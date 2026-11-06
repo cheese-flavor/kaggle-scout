@@ -10,9 +10,10 @@ from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
     QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
-    QFileDialog, QSystemTrayIcon, QMenu, QSplitter, QSlider)
+    QFileDialog, QSystemTrayIcon, QMenu, QSplitter, QSlider, QListWidget, QListWidgetItem)
 from core import Store, Kaggle, DEFAULT, TOPICS, AUDIENCES, validate_profile, read_json_file, validate_credentials, assess, now, date, display_date, plain, slug
 from installation import data_directory, migrate_database
+from core import exclusion_details, EXCLUSION_LABELS
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
@@ -155,6 +156,83 @@ class SliderInput(QWidget):
         self.slider.blockSignals(False)
         if emit:
             self.valueChanged.emit(value)
+
+class ExclusionDialog(QDialog):
+    def __init__(self, window):
+        super().__init__(window)
+        self.window = window
+        self.setWindowTitle('대회가 제외된 이유')
+        self.resize(720, 560)
+        box = QVBoxLayout(self)
+        box.setContentsMargins(24, 24, 24, 24)
+        box.addWidget(label('제외 이유 확인', 'heading'))
+        box.addWidget(label('저장된 조건 기준이며 숨긴 대회는 제외합니다. 한 대회에 여러 이유가 있을 수 있습니다.', 'muted', True))
+        self.entries = []
+        profile = window.store.profile()
+        counts = {}
+        for row in window.store.rows():
+            if row['hidden']:
+                continue
+            item = json.loads(row['body'])
+            details = exclusion_details(item, profile)
+            if details:
+                self.entries.append((row['ref'], item, details))
+                for code in {d['code'] for d in details}:
+                    counts[code] = counts.get(code, 0) + 1
+        self.reason = QComboBox()
+        self.reason.addItem(f'전체 제외 대회 ({len(self.entries)}개)', '')
+        for code, text in EXCLUSION_LABELS.items():
+            if code in counts:
+                self.reason.addItem(f'{text} ({counts[code]}개)', code)
+        box.addWidget(self.reason)
+        self.items = QListWidget()
+        self.items.setWordWrap(True)
+        box.addWidget(self.items, 1)
+        self.explanation = label('', 'muted', True)
+        box.addWidget(self.explanation)
+        actions = QHBoxLayout()
+        actions.addWidget(button('설정 조정', self.adjust))
+        self.view_button = button('목록에서 보기', self.view, True)
+        actions.addWidget(self.view_button)
+        actions.addWidget(button('닫기', self.accept))
+        box.addLayout(actions)
+        self.reason.currentIndexChanged.connect(self.fill)
+        self.items.currentItemChanged.connect(self.describe)
+        self.fill()
+
+    def fill(self, *_):
+        self.items.clear()
+        for ref, item, details in self.entries:
+            if self.reason.currentData() and not any(d['code'] == self.reason.currentData() for d in details):
+                continue
+            entry = QListWidgetItem(str(item.get('title', ref)) + '\n' + ' · '.join(dict.fromkeys(d['label'] for d in details)))
+            entry.setData(Qt.ItemDataRole.UserRole, (ref, item, details))
+            self.items.addItem(entry)
+        if self.items.count():
+            self.items.setCurrentRow(0)
+        else:
+            self.explanation.setText('현재 조건으로 제외된 대회가 없습니다.')
+        self.view_button.setEnabled(self.items.count() > 0)
+
+    def describe(self, current, previous=None):
+        if current:
+            _, _, details = current.data(Qt.ItemDataRole.UserRole)
+            self.explanation.setText('\n\n'.join(d['detail'] for d in details))
+
+    def adjust(self):
+        self.accept()
+        self.window.navigate(3)
+
+    def view(self):
+        current = self.items.currentItem()
+        if current:
+            ref, item, _ = current.data(Qt.ItemDataRole.UserRole)
+            self.accept()
+            self.window.navigate(0)
+            self.window.clear_search_filters()
+            self.window.show_excluded.setChecked(True)
+            self.window.search.setText(str(item.get('title', ref)))
+            self.window.select(ref)
 
 class Job(QThread):
     done = Signal(object)
@@ -430,6 +508,8 @@ class Window(QMainWindow):
         switches.addWidget(self.show_excluded)
         switches.addWidget(self.show_hidden)
         switches.addStretch()
+        self.exclusion_button = button('제외 이유', self.show_exclusion_dialog)
+        switches.addWidget(self.exclusion_button)
         layout.addLayout(switches)
         split = QSplitter(Qt.Orientation.Horizontal)
         scroll = QScrollArea()
@@ -519,19 +599,21 @@ class Window(QMainWindow):
         self.profile_summary.setText(f"{profile['name']}\n{profile['gpu']} · {profile['vram']}GB")
         self.hero_text.setText(f"관심 분야 {len(profile['topics'])}개 · {profile['interval']}분마다 확인")
         rows = self.store.rows()
+        excluded_count = sum(bool(exclusion_details(json.loads(r['body']), profile)) for r in rows if not r['hidden'])
+        self.exclusion_button.setText(f'제외 이유 ({excluded_count})')
         results = []
         query = self.search.text().lower().strip()
         for row in rows:
             item = json.loads(row['body'])
             verdict = assess(item, profile)
+            details = exclusion_details(item, profile, verdict)
+            row['exclusions'] = details
             row['item'], row['verdict'] = item, verdict
             if self.mode == 1 and not row['starred']:
                 continue
             if row['hidden'] and not self.show_hidden.isChecked():
                 continue
-            if verdict['excluded'] and not self.show_excluded.isChecked():
-                continue
-            if verdict['score'] < profile['min_score']:
+            if details and not self.show_excluded.isChecked():
                 continue
             if query and query not in plain(json.dumps(item, ensure_ascii=False)).lower():
                 continue
@@ -589,8 +671,8 @@ class Window(QMainWindow):
             line.addStretch()
             line.addWidget(button('자세히 →', lambda checked=False, ref=row['ref']: self.select(ref)))
             p.addLayout(line)
-            if v['excluded']:
-                p.addWidget(label(' / '.join(v['excluded']), 'muted', True))
+            if row['exclusions']:
+                p.addWidget(label('제외: ' + ' · '.join(dict.fromkeys(d['label'] for d in row['exclusions'])), 'muted', True))
             self.cards.addWidget(panel)
         self.cards.addStretch()
         visible = {r['ref'] for r in results}
@@ -600,6 +682,11 @@ class Window(QMainWindow):
 
     def selected_row(self):
         return next((r for r in self.store.rows() if r['ref'] == self.selected), None)
+
+    def show_exclusion_dialog(self):
+        dialog = ExclusionDialog(self)
+        dialog.exec()
+        dialog.deleteLater()
 
     def select(self, ref):
         self.selected = ref
@@ -628,8 +715,9 @@ class Window(QMainWindow):
         body += '<h3>일정과 주요 정보</h3>' + ''.join(f'<p><b>{k}</b><br>{esc(value)}</p>' for k, value in pairs)
         body += '<h3>추천 이유</h3><p>' + '<br>'.join(esc(x) for x in v['reasons']) + '</p>'
         body += '<h3>내 환경에서 확인할 사항</h3><p>' + '<br><br>'.join(esc(v[k]) for k in ('eligibility', 'gpu', 'api')) + '</p>'
-        if v['excluded']:
-            body += '<h3>현재 제외 이유</h3><p>' + '<br>'.join(esc(x) for x in v['excluded']) + '</p>'
+        details = exclusion_details(item, self.store.profile(), v)
+        if details:
+            body += '<h3>현재 제외 이유</h3><p>' + '<br><br>'.join(esc(d['detail']).replace('\n', '<br>') for d in details) + '</p>'
         if item.get('pages'):
             body += '<h3>추가 조회한 원문</h3><p>' + esc(plain(item['pages'])).replace('\n', '<br>') + '</p>'
         body += '<p style="color:#6c7d90">설명·규칙이 변경될 수 있습니다. 확정되지 않은 조건은 확인 필요로 표시합니다.</p>'

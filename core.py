@@ -189,6 +189,30 @@ def assess(item, profile, at=None):
             'excluded': excluded, 'gpu': gpu, 'eligibility': eligibility, 'audiences': groups,
             'api': '유료 API 필수 문구 감지' if paid else '유료 API 필요 여부: 규칙 확인 필요'}
 
+EXCLUSION_LABELS = {'deadline': '마감', 'audience': '참가 대상', 'gpu': 'GPU 용량',
+                    'paid_api': '유료 API', 'offline': '오프라인', 'keyword': '제외 키워드',
+                    'score': '추천 점수', 'status': '제출 상태', 'other': '기타'}
+
+def exclusion_details(item, profile, verdict=None):
+    verdict = verdict or assess(item, profile)
+    details = []
+    for reason in verdict['excluded']:
+        code = ('deadline' if '마감' in reason else 'audience' if '참가 구분' in reason else
+                'gpu' if 'VRAM' in reason else 'paid_api' if '유료 API' in reason else
+                'offline' if '오프라인' in reason else 'keyword' if '제외 키워드' in reason else
+                'status' if '제출 비활성' in reason else 'other')
+        detail = reason
+        if code == 'gpu':
+            detail += '\n' + verdict['gpu']
+        elif code == 'deadline':
+            field = 'newEntrantDeadline' if '신규 참가' in reason else 'deadline'
+            detail += '\n' + display_date(item.get(field))
+        details.append({'code': code, 'label': EXCLUSION_LABELS[code], 'detail': detail})
+    if verdict['score'] < profile['min_score']:
+        details.append({'code': 'score', 'label': EXCLUSION_LABELS['score'],
+                        'detail': f"탐색 점수 {verdict['score']}점 < 설정한 최소 {profile['min_score']}점"})
+    return details
+
 class Blob(ctypes.Structure):
     _fields_ = [('size', ctypes.c_uint32), ('data', ctypes.POINTER(ctypes.c_ubyte))]
 
