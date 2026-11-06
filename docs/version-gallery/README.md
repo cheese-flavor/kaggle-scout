@@ -4,6 +4,17 @@
 
 최신 변경부터 보여줍니다. 각 버전의 전체 원본은 아래 **원본 화면 보관함**에 그대로 남깁니다.
 
+## v0.6.0 → v0.7.0
+
+| 이전 · v0.6.0 | 이후 · v0.7.0 |
+|---|---|
+| [![이전 화면](v0.6.0/dashboard-v060.png)](v0.6.0/dashboard-v060.png) | [![이후 화면](v0.7.0/dashboard-v070.png)](v0.7.0/dashboard-v070.png) |
+
+- 삭제 대회를 따로 보관하고 한국 시간 기준 종료일 전날까지 복구할 수 있습니다. [삭제 보관함](v0.7.0/trash-v070.png)
+- 메인 제목을 대회 탐색으로 바꾸고 제목·분류 표현을 명사형으로 정리했습니다.
+- 설명·분야·날짜 글자를 조금 키우고 D-day를 강조했습니다. 날짜와 분야는 별도 줄로 나눴습니다.
+- 관심 화면은 설정의 이름을 반영한 ○○의 관심 대회 형식입니다. [관심 화면](v0.7.0/bookmarks-v070.png) · [이름 설정](v0.7.0/profile-settings-v070.png)
+
 ## v0.5.0 → v0.6.0
 
 | 이전 · v0.5.0 | 이후 · v0.6.0 |
@@ -119,6 +130,25 @@
 ![v0.6.0 education-small-v060](v0.6.0/education-small-v060.png)
 
 ![v0.6.0 collection-settings-v060](v0.6.0/collection-settings-v060.png)
+
+</details>
+
+<details>
+<summary>v0.7.0 전체 화면</summary>
+
+![v0.7.0 bookmarks-v070](v0.7.0/bookmarks-v070.png)
+
+![v0.7.0 collection-settings-v070](v0.7.0/collection-settings-v070.png)
+
+![v0.7.0 dashboard-v070](v0.7.0/dashboard-v070.png)
+
+![v0.7.0 education-small-v070](v0.7.0/education-small-v070.png)
+
+![v0.7.0 education-v070](v0.7.0/education-v070.png)
+
+![v0.7.0 profile-settings-v070](v0.7.0/profile-settings-v070.png)
+
+![v0.7.0 trash-v070](v0.7.0/trash-v070.png)
 
 </details>
 

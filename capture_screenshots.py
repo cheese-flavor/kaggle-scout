@@ -3,11 +3,12 @@ import argparse
 from pathlib import Path
 import re
 import tempfile
+from datetime import timedelta
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtTest import QTest
-from app import Window, ASSETS, STYLE
-from core import Store, DEFAULT
+from app import Window, TrashDialog, ASSETS, STYLE
+from core import Store, DEFAULT, now
 
 
 def capture(version):
@@ -28,7 +29,7 @@ def capture(version):
         ('주택 가격 예측 입문', '회귀 모델과 특성 공학을 연습하는 예시 대회', 'Getting Started', 'Tabular regression'),
     ]
     items = [{'ref': f'fixture-{i}', 'title': t, 'description': d, 'category': cat, 'tags': tags,
-              'deadline': '2099-12-31T14:59:00Z' if i >= 3 else '2026-11-30T14:59:00Z',
+              'deadline': '2099-12-31T14:59:00Z' if i >= 3 else (now().replace(hour=14, minute=59, second=0, microsecond=0) + timedelta(days=24)).isoformat(),
               'reward': '가상 예시', 'evaluationMetric': '예시 지표', 'maxTeamSize': 5}
              for i, (t, d, cat, tags) in enumerate(values)]
     (root / 'work').mkdir(exist_ok=True)
@@ -40,10 +41,10 @@ def capture(version):
         window.show()
         outputs = []
 
-        def shot(name):
+        def shot(name, target=None):
             QTest.qWait(180)
             path = root / 'docs' / f'{name}-{suffix}.png'
-            if not window.grab().save(str(path)):
+            if not (target or window).grab().save(str(path)):
                 raise RuntimeError('Screenshot save failed')
             outputs.append(path)
 
@@ -53,10 +54,27 @@ def capture(version):
             shot('education')
             window.resize(960, 680)
             shot('education-small')
+            window.resize(1180, 820)
+            window.collection_tabs.setCurrentIndex(0)
+            window.name_input.setText('민수')
+            window.save_settings()
+            store.flag('fixture-0', 'starred', True)
+            window.navigate(1)
+            shot('bookmarks')
+            window.delete_competition('fixture-2')
+            dialog = TrashDialog(window)
+            try:
+                dialog.show()
+                shot('trash', dialog)
+            finally:
+                dialog.close()
             window.navigate(3)
             window.resize(1180, 820)
             window.settings_tabs.setCurrentIndex(2)
             shot('collection-settings')
+            window.settings_tabs.setCurrentIndex(0)
+            window.settings_scroll.verticalScrollBar().setValue(max(0, window.name_input.parentWidget().y() - 8))
+            shot('profile-settings')
         finally:
             window.quitting = True
             window.close()

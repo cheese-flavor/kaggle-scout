@@ -106,5 +106,47 @@
     "source": "v0.6.0:docs/collection-settings-v060.png",
     "image": "v0.6.0/collection-settings-v060.png",
     "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.7.0",
+    "source": "v0.7.0:docs/bookmarks-v070.png",
+    "image": "v0.7.0/bookmarks-v070.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.7.0",
+    "source": "v0.7.0:docs/collection-settings-v070.png",
+    "image": "v0.7.0/collection-settings-v070.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.7.0",
+    "source": "v0.7.0:docs/dashboard-v070.png",
+    "image": "v0.7.0/dashboard-v070.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.7.0",
+    "source": "v0.7.0:docs/education-small-v070.png",
+    "image": "v0.7.0/education-small-v070.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.7.0",
+    "source": "v0.7.0:docs/education-v070.png",
+    "image": "v0.7.0/education-v070.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.7.0",
+    "source": "v0.7.0:docs/profile-settings-v070.png",
+    "image": "v0.7.0/profile-settings-v070.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.7.0",
+    "source": "v0.7.0:docs/trash-v070.png",
+    "image": "v0.7.0/trash-v070.png",
+    "data": "illustrative fixtures"
   }
 ]
