@@ -75,6 +75,32 @@ def capture(version):
             window.settings_tabs.setCurrentIndex(0)
             window.settings_scroll.verticalScrollBar().setValue(max(0, window.name_input.parentWidget().y() - 8))
             shot('profile-settings')
+            window.settings_tabs.setCurrentIndex(3)
+            shot('notifications')
+            menu = window.tray.contextMenu()
+            menu.popup(window.pos())
+            try:
+                shot('tray-menu', menu)
+            finally:
+                menu.close()
+            # Independent synthetic records expose the calendar urgency colors.
+            with store.connect() as con:
+                con.execute('DELETE FROM items')
+            examples = [
+                ('영상 객체 탐지', '이미지·영상 모델 평가용 예시 대회', 'image vision', 2),
+                ('주간 데이터 분석', '정형 데이터 예측용 예시 대회', 'tabular regression', 6),
+                ('음성 분류 실험', '음성 인식 모델 비교용 예시 대회', 'audio speech', 14),
+                ('수요 시계열 예측', '시계열 예측용 예시 대회', 'time series forecast', 30),
+            ]
+            store.sync([{'ref': f'color-example-{i}', 'title': t, 'description': d, 'tags': tags,
+                         'category': 'Featured', 'deadline': (now() + timedelta(days=days)).isoformat()}
+                        for i, (t, d, tags, days) in enumerate(examples)], store.profile())
+            window.navigate(0)
+            window.resize(1180, 1058)
+            window.sort.setCurrentIndex(1)
+            window.render()
+            window.status.setText('예시 데이터 · 마감·분야 색상')
+            shot('deadline-colors')
         finally:
             window.quitting = True
             window.close()

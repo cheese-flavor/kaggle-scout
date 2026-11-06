@@ -148,5 +148,65 @@
     "source": "v0.7.0:docs/trash-v070.png",
     "image": "v0.7.0/trash-v070.png",
     "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.0",
+    "source": "v0.8.0:docs/bookmarks-v080.png",
+    "image": "v0.8.0/bookmarks-v080.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.0",
+    "source": "v0.8.0:docs/collection-settings-v080.png",
+    "image": "v0.8.0/collection-settings-v080.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.0",
+    "source": "v0.8.0:docs/dashboard-v080.png",
+    "image": "v0.8.0/dashboard-v080.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.0",
+    "source": "v0.8.0:docs/deadline-colors-v080.png",
+    "image": "v0.8.0/deadline-colors-v080.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.0",
+    "source": "v0.8.0:docs/education-small-v080.png",
+    "image": "v0.8.0/education-small-v080.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.0",
+    "source": "v0.8.0:docs/education-v080.png",
+    "image": "v0.8.0/education-v080.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.0",
+    "source": "v0.8.0:docs/notifications-v080.png",
+    "image": "v0.8.0/notifications-v080.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.0",
+    "source": "v0.8.0:docs/profile-settings-v080.png",
+    "image": "v0.8.0/profile-settings-v080.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.0",
+    "source": "v0.8.0:docs/trash-v080.png",
+    "image": "v0.8.0/trash-v080.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.0",
+    "source": "v0.8.0:docs/tray-menu-v080.png",
+    "image": "v0.8.0/tray-menu-v080.png",
+    "data": "illustrative fixtures"
   }
 ]

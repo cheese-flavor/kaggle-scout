@@ -1,0 +1,42 @@
+{
+  "blue": {
+    "ink": "#2558a4",
+    "surface": "#e9f1ff",
+    "contrast": 6.14
+  },
+  "violet": {
+    "ink": "#7043a5",
+    "surface": "#f1eafb",
+    "contrast": 5.9
+  },
+  "indigo": {
+    "ink": "#524ba4",
+    "surface": "#eeedfb",
+    "contrast": 6.25
+  },
+  "teal": {
+    "ink": "#176d5e",
+    "surface": "#e5f3ed",
+    "contrast": 5.43
+  },
+  "amber": {
+    "ink": "#865400",
+    "surface": "#fff2d5",
+    "contrast": 5.76
+  },
+  "rose": {
+    "ink": "#a43d61",
+    "surface": "#fbeaf0",
+    "contrast": 5.3
+  },
+  "danger": {
+    "ink": "#ad3646",
+    "surface": "#fcebed",
+    "contrast": 5.38
+  },
+  "slate": {
+    "ink": "#506078",
+    "surface": "#edf1f6",
+    "contrast": 5.64
+  }
+}

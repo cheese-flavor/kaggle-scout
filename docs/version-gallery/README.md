@@ -4,6 +4,17 @@
 
 최신 변경부터 보여줍니다. 각 버전의 전체 원본은 아래 **원본 화면 보관함**에 그대로 남깁니다.
 
+## v0.7.0 → v0.8.0
+
+| 이전 · v0.7.0 | 이후 · v0.8.0 |
+|---|---|
+| [![이전 화면](v0.7.0/dashboard-v070.png)](v0.7.0/dashboard-v070.png) | [![이후 화면](v0.8.0/dashboard-v080.png)](v0.8.0/dashboard-v080.png) |
+
+- 파랑·보라·초록·앰버·로즈로 탐색, 관심, 교육용, 분야와 마감 상태를 구분합니다. [마감·분야 색상](v0.8.0/deadline-colors-v080.png)
+- 관심 목록은 보라, 교육용은 초록으로 선택 상태를 강조하며 글자와 아이콘도 함께 유지합니다. [관심 화면](v0.8.0/bookmarks-v080.png)
+- 트레이 우클릭 메뉴는 작은 앱 열기·종료 두 항목으로 정리했습니다. [트레이 메뉴](v0.8.0/tray-menu-v080.png)
+- 알림 설정에 새 대회는 추천 조건, 변경·마감은 관심 등록 기준임을 명시했습니다. [알림 설정](v0.8.0/notifications-v080.png)
+
 ## v0.6.0 → v0.7.0
 
 | 이전 · v0.6.0 | 이후 · v0.7.0 |
@@ -149,6 +160,31 @@
 ![v0.7.0 profile-settings-v070](v0.7.0/profile-settings-v070.png)
 
 ![v0.7.0 trash-v070](v0.7.0/trash-v070.png)
+
+</details>
+
+<details>
+<summary>v0.8.0 전체 화면</summary>
+
+![v0.8.0 bookmarks-v080](v0.8.0/bookmarks-v080.png)
+
+![v0.8.0 collection-settings-v080](v0.8.0/collection-settings-v080.png)
+
+![v0.8.0 dashboard-v080](v0.8.0/dashboard-v080.png)
+
+![v0.8.0 deadline-colors-v080](v0.8.0/deadline-colors-v080.png)
+
+![v0.8.0 education-small-v080](v0.8.0/education-small-v080.png)
+
+![v0.8.0 education-v080](v0.8.0/education-v080.png)
+
+![v0.8.0 notifications-v080](v0.8.0/notifications-v080.png)
+
+![v0.8.0 profile-settings-v080](v0.8.0/profile-settings-v080.png)
+
+![v0.8.0 trash-v080](v0.8.0/trash-v080.png)
+
+![v0.8.0 tray-menu-v080](v0.8.0/tray-menu-v080.png)
 
 </details>
 
