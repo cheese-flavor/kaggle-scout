@@ -92,13 +92,14 @@ class EducationUITests(unittest.TestCase):
             reopened.close()
             reopened.deleteLater()
 
-    def test_compact_information_views_remain_accessible(self):
+    def test_compact_full_information_remains_available_without_switching(self):
         self.seed()
         self.window.collection_tabs.setCurrentIndex(1)
         self.window.show()
         self.window.resize(960, 680)
         QTest.qWait(30)
-        self.assertTrue(self.window.detail_tabs.isHidden())
-        self.window.more_button.menu().actions()[-1].trigger()
-        self.assertEqual(self.window.detail_tabs.currentIndex(), 1)
-        self.assertIn('일정과 주요 정보', self.window.detail.toPlainText())
+        self.assertIn('대회 일정', self.window.detail.toPlainText())
+        self.assertIn('평가 지표', self.window.detail.toPlainText())
+        self.assertIn('참가 조건·내 환경', self.window.detail.toPlainText())
+        self.assertTrue(self.window.star_button.isVisible())
+        self.assertTrue(self.window.delete_button.isVisible())

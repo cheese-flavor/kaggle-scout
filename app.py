@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 from datetime import timedelta
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QLockFile, QUrl, QTime, QSize
-from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction, QKeyEvent
+from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction, QKeyEvent, QTextOption
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
     QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
@@ -18,6 +18,7 @@ from core import exclusion_details, EXCLUSION_LABELS, NOTIFY_KINDS, KST, trash_c
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
 from ui_theme import STYLE, icon, TONES, TOPIC_TONES, NAV_TONES, set_tone
+from detail_view import DOCUMENT_STYLE, detail_document
 
 def label(text, kind=None, wrap=False):
     w = QLabel()
@@ -718,12 +719,9 @@ class Window(QMainWindow):
         detail, d = card()
         detail.setMinimumWidth(290)
         d.setContentsMargins(22, 22, 22, 22)
-        self.detail_tabs = QTabBar()
-        self.detail_tabs.addTab('요약')
-        self.detail_tabs.addTab('전체 정보')
-        d.addWidget(self.detail_tabs)
         self.detail = SafeTextBrowser()
-        self.detail.document().setDefaultStyleSheet('body {font-family:Pretendard;font-size:17px;color:#526279;} h2 {font-size:24px;font-weight:700;color:#14243c;margin-bottom:16px;} h3 {font-size:17px;font-weight:600;color:#172d43;margin-top:22px;} p {line-height:150%;margin-bottom:16px;}')
+        self.detail.document().setDefaultStyleSheet(DOCUMENT_STYLE)
+        self.detail.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
         self.detail.setMinimumHeight(0)
         d.addWidget(self.detail, 1)
         self.original_button = button('Kaggle 원문 열기 ↗', self.open_selected, True)
@@ -744,13 +742,10 @@ class Window(QMainWindow):
         more_menu = QMenu(self.more_button)
         self.more_rules_action = more_menu.addAction(icon('layers'), '참가 조건 확인', self.load_pages)
         self.more_hide_action = more_menu.addAction(icon('eye-off'), '숨김 해제', self.hide_item)
-        self.more_summary_action = more_menu.addAction('요약 보기', lambda: self.detail_tabs.setCurrentIndex(0))
-        self.more_full_action = more_menu.addAction('전체 정보 보기', lambda: self.detail_tabs.setCurrentIndex(1))
         self.more_button.setMenu(more_menu)
         actions.addWidget(self.more_button)
         d.addLayout(actions)
         d.addWidget(self.rules_button)
-        self.detail_tabs.currentChanged.connect(lambda _: self.select(self.selected))
         split.addWidget(detail)
         split.setSizes([640, 380])
         layout.addWidget(split, 1)
@@ -775,26 +770,24 @@ class Window(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if hasattr(self, 'more_full_action'):
+        if hasattr(self, 'more_rules_action'):
             self.update_detail_actions()
 
     def update_detail_actions(self):
-        if hasattr(self, 'more_full_action'):
+        if hasattr(self, 'more_rules_action'):
             compact = self.height() < 760
             self.star_button.setVisible(True)
             self.delete_button.setVisible(True)
             for button in (self.star_button, self.delete_button):
                 button.setStyleSheet('padding:10px;' if compact else '')
             self.rules_button.setVisible(not compact)
-            for action in (self.more_rules_action, self.more_summary_action, self.more_full_action):
-                action.setVisible(compact)
+            self.more_rules_action.setVisible(compact)
             row = self.selected_row()
             legacy_hidden = bool(row and row['hidden'])
             self.more_hide_action.setVisible(legacy_hidden)
             self.more_button.setVisible(compact or legacy_hidden)
             self.more_button.setText('')
             self.more_button.setFixedWidth(44)
-            self.detail_tabs.setVisible(not compact)
 
     def choose_chip(self, text):
         self.topic.setCurrentText({'정형 데이터': '정형 데이터 / SQL', 'LLM · NLP': 'LLM · NLP'}.get(text, '모든 분야'))
@@ -1030,49 +1023,29 @@ class Window(QMainWindow):
         if not row:
             self.star_button.setText('관심 등록')
             self.hide_button.setText('숨기기')
-            self.detail.setHtml('<h2>대회 상세 정보</h2><p>대회를 선택하면 일정과 추천 이유를 확인할 수 있습니다.</p>')
+            self.show_detail_document(None, '<h2>대회 상세 정보</h2><p>대회를 선택하면 일정과 추천 이유를 확인할 수 있습니다.</p>')
             return
         self.star_button.setText('관심 해제' if row['starred'] else '관심 등록')
         self.star_button.setIcon(icon('bookmark-check' if row['starred'] else 'bookmark', TONES['violet']['ink']))
         self.hide_button.setText('숨김 해제' if row['hidden'] else '숨기기')
         item = json.loads(row['body'])
         v = assess(item, self.store.profile())
-        esc = lambda x: html.escape(str(x or '확인 필요'))
-        pairs = [('시작', display_date(item.get('enabledDate'))),
-                 ('신규 참가 마감', display_date(item.get('newEntrantDeadline'))),
-                 ('팀 구성 마감', display_date(item.get('mergerDeadline'))),
-                 ('최종 제출 마감', display_date(item.get('deadline'))),
-                 ('평가 지표', item.get('evaluationMetric')),
-                 ('제출 방식', 'Kaggle Notebook 코드 제출' if item.get('isKernelsSubmissionsOnly') else '목록 API에 코드 전용 제한 없음 · 규칙 확인'),
-                 ('최대 팀 인원', item.get('maxTeamSize')), ('보상', item.get('reward')),
-                 ('참여 팀', item.get('teamCount')), ('마지막 확인', display_date(row['last_seen']))]
-        body = '<h2>' + esc(item.get('title')) + '</h2><p>' + esc(plain(item.get('description'))) + '</p>'
-        classification = '<h3>교육용 대회</h3><p>' + esc(v['education_reason']) + '</p>' if v['education'] else ''
-        body += classification
-        body += '<h3>일정과 주요 정보</h3>' + ''.join(f'<p><b>{k}</b><br>{esc(value)}</p>' for k, value in pairs)
-        body += '<h3>추천 이유</h3><p>' + '<br>'.join(esc(x) for x in v['reasons']) + '</p>'
-        body += '<h3>내 환경에서 확인할 사항</h3><p>' + '<br><br>'.join(esc(v[k]) for k in ('eligibility', 'gpu', 'api')) + '</p>'
+        end = date(item.get('deadline'))
+        long_practice = bool(v['education'] and end and end > now() + timedelta(days=365))
+        _, _, topic_ink, _ = topic_visual(v['topics'])
         details = exclusion_details(item, self.store.profile(), v)
-        if details:
-            body += '<h3>현재 제외 이유</h3><p>' + '<br><br>'.join(esc(d['detail']).replace('\n', '<br>') for d in details) + '</p>'
-        if item.get('pages'):
-            body += '<h3>추가 조회한 원문</h3><p>' + esc(plain(item['pages'])).replace('\n', '<br>') + '</p>'
-        body += '<p style="color:#6c7d90">설명·규칙이 변경될 수 있습니다. 확정되지 않은 조건은 확인 필요로 표시합니다.</p>'
-        if self.detail_tabs.currentIndex() == 0:
-            end = date(item.get('deadline'))
-            long_practice = v['education'] and end and end > now() + timedelta(days=365)
-            deadline_text = display_date(item.get('deadline')) + (' · API상 마감' if long_practice else '  ' + deadline_badge(item.get('deadline')))
-            summary = '<h2 style="font-size:28px;">' + esc(item.get('title')) + '</h2><p style="font-size:18px;color:#627086;">' + esc(plain(item.get('description'))) + '</p>'
-            _, _, topic_ink, _ = topic_visual(v['topics'])
-            summary += '<p style="color:' + topic_ink + ';font-weight:600">' + esc(' · '.join(v['topics']) or '분야 확인 필요') + '</p>'
-            summary += classification
-            summary += ('<h3>장기 운영 일정</h3><p>' if long_practice else '<h3>제출 마감</h3><p>') + esc(deadline_text) + '</p>'
-            summary += '<h3>추천 이유</h3><p>' + '<br>'.join(esc(x) for x in v['reasons']) + '</p>'
-            summary += '<h3>참가 조건</h3><p>' + esc(v['eligibility']) + '</p>'
-            if details:
-                summary += '<h3>현재 제외 이유</h3><p>' + '<br>'.join(esc(d['detail']) for d in details) + '</p>'
-            body = summary
+        body = detail_document(item, v, details, row['last_seen'], deadline_badge(item.get('deadline')),
+                               TONES[deadline_tone(item.get('deadline'), long_practice)], topic_ink, long_practice)
+        self.show_detail_document(ref, body)
+
+    def show_detail_document(self, ref, body):
+        previous_ref = getattr(self, '_detail_ref', None)
+        if previous_ref == ref and getattr(self, '_detail_html', None) == body:
+            return
+        position = self.detail.verticalScrollBar().value() if previous_ref == ref else 0
+        self._detail_ref, self._detail_html = ref, body
         self.detail.setHtml(body)
+        self.detail.verticalScrollBar().setValue(position)
 
     def toggle_bookmark(self, ref):
         row = next((r for r in self.store.rows() if r['ref'] == ref), None)
