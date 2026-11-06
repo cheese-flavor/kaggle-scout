@@ -36,6 +36,9 @@ QLabel#heading {font-size:36px; font-weight:700; color:#12223b;}
 QLabel#title {font-size:24px; font-weight:600;}
 QLabel#brand {font-size:15px; font-weight:700;}
 QLabel#chip {background:#e6f8ff; color:#027ca4; border-radius:12px; padding:5px 10px; font-size:12px; font-weight:600;}
+QLabel#cardDescription {color:#556981; font-size:17px;}
+QLabel#cardDate {color:#48617c; font-size:17px; font-weight:500;}
+QLabel#deadline {background:#def5ff; color:#007da9; border-radius:14px; padding:7px 12px; font-size:18px; font-weight:700;}
 QLabel#profilePill {font-size:16px;background:#ffffff; border:1px solid #e1e7ef; border-radius:19px; padding:10px 16px; font-weight:600;}
 QFrame#card {background:#ffffff; border:1px solid #e3e9f1; border-radius:20px;}
 QFrame#hero {background:#eaf9ff; border:1px solid #bfeafa; border-radius:20px;}

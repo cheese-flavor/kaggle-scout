@@ -150,7 +150,7 @@ class UITests(unittest.TestCase):
     def test_search_empty_state_has_recovery_and_no_dead_actions(self):
         self.store.sync([item(deadline='2099-12-01T00:00:00Z')], self.store.profile())
         self.window.search.setText('nonexistent')
-        self.assertEqual(self.window.empty_title, '검색 결과가 없습니다')
+        self.assertEqual(self.window.empty_title, '검색 결과 없음')
         self.assertFalse(self.window.original_button.isEnabled())
         self.window.clear_search_filters()
         self.assertEqual(self.window.current_page_refs, ['example'])

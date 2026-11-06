@@ -185,7 +185,7 @@ class ExclusionDialog(QDialog):
     def __init__(self, window):
         super().__init__(window)
         self.window = window
-        self.setWindowTitle('대회가 제외된 이유')
+        self.setWindowTitle('제외 이유')
         self.resize(720, 560)
         box = QVBoxLayout(self)
         box.setContentsMargins(24, 24, 24, 24)
@@ -362,7 +362,7 @@ class Connect(QDialog):
         box.setContentsMargins(32, 32, 32, 32)
         box.setSpacing(16)
         box.addWidget(label('01  CONNECT YOUR KAGGLE', 'eyebrow'))
-        box.addWidget(label('나의 다음 도전을 연결하세요', 'heading'))
+        box.addWidget(label('Kaggle 계정 연결', 'heading'))
         box.addWidget(label('Kaggle 개인 API 토큰으로 대회를 확인합니다.\nAI 모델 API가 아니며, 유료 AI 서비스를 호출하지 않습니다.', 'muted', True))
         panel, fields = card()
         fields.addWidget(label('Kaggle 개인 API 토큰', 'title'))
@@ -575,7 +575,7 @@ class Window(QMainWindow):
             b.setIcon(icon(self.nav_icons[i], '#0088b5' if i == index else '#627087', 25))
         self.pages.setCurrentIndex(0 if index <= 1 else index - 1)
         if index <= 1:
-            self.heading.setText('관심 대회를 한곳에' if index == 1 else '나에게 맞는 다음 도전')
+            self.heading.setText('관심 대회' if index == 1 else '대회 탐색')
             self.render()
         elif index == 2:
             self.render_events()
@@ -587,7 +587,7 @@ class Window(QMainWindow):
         layout.setSpacing(14)
         top = QHBoxLayout()
         titles = QVBoxLayout()
-        self.heading = label('나에게 맞는 다음 도전', 'heading')
+        self.heading = label('대회 탐색', 'heading')
         titles.addWidget(self.heading)
         self.hero_text = label('', 'muted', True)
         titles.addWidget(self.hero_text)
@@ -635,7 +635,7 @@ class Window(QMainWindow):
         filter_panel = QWidget()
         filters = QVBoxLayout(filter_panel)
         filters.setContentsMargins(14, 12, 14, 12)
-        filters.addWidget(label('분야와 정렬', 'title'))
+        filters.addWidget(label('분야·정렬', 'title'))
         self.topic = QComboBox()
         self.topic.addItems(['모든 분야'] + list(TOPICS) + ['LLM · NLP'])
         self.topic.currentTextChanged.connect(self.reset_page)
@@ -676,7 +676,7 @@ class Window(QMainWindow):
         self.detail_tabs.addTab('전체 정보')
         d.addWidget(self.detail_tabs)
         self.detail = SafeTextBrowser()
-        self.detail.document().setDefaultStyleSheet('body {font-family:Pretendard;font-size:15px;color:#526279;} h2 {font-size:24px;font-weight:700;color:#14243c;margin-bottom:16px;} h3 {font-size:16px;font-weight:600;color:#172d43;margin-top:22px;} p {line-height:150%;margin-bottom:16px;}')
+        self.detail.document().setDefaultStyleSheet('body {font-family:Pretendard;font-size:17px;color:#526279;} h2 {font-size:24px;font-weight:700;color:#14243c;margin-bottom:16px;} h3 {font-size:17px;font-weight:600;color:#172d43;margin-top:22px;} p {line-height:150%;margin-bottom:16px;}')
         self.detail.setMinimumHeight(0)
         d.addWidget(self.detail, 1)
         self.original_button = button('Kaggle 원문 열기 ↗', self.open_selected, True)
@@ -793,7 +793,7 @@ class Window(QMainWindow):
         self.collection_tabs.setVisible(separate)
         education_view = separate and self.collection_tabs.currentIndex() == 1
         self.sync_chips()
-        intro = '입문·연습용 대회를 따로 모았어요.' if education_view else '관심 분야에 맞는 다음 도전을 찾아보세요.'
+        intro = '입문·연습 대회 목록' if education_view else '관심 분야·참가 조건 기준 대회 목록'
         self.hero_text.setText(('예시 데이터 화면 · ' if self.preview else '') + intro)
         self.hero_text.setToolTip(f"관심 분야 {len(profile['topics'])}개 · {profile['interval']}분마다 확인")
         deleted = self.store.trash_rows()
@@ -849,19 +849,19 @@ class Window(QMainWindow):
         if not results:
             panel, p = card()
             if rows and (query or self.topic.currentIndex()):
-                title, text, action, fn = '검색 결과가 없습니다', '검색어나 분야를 바꿔보세요.', '검색 조건 초기화', self.clear_search_filters
+                title, text, action, fn = '검색 결과 없음', '검색어나 분야를 변경할 수 있습니다.', '검색 조건 초기화', self.clear_search_filters
             elif self.mode == 1 and not any(r['starred'] for r in rows):
-                title, text, action, fn = '관심 대회를 담아보세요', '대회 상세에서 관심 버튼을 누르면 여기에 모입니다.', '대회 탐색', lambda: self.navigate(0)
+                title, text, action, fn = '관심 대회 없음', '관심 등록한 대회가 이 목록에 표시됩니다.', '대회 탐색', lambda: self.navigate(0)
             elif separate and education_view and rows:
-                title, text, action, fn = '현재 조건의 교육용 대회가 없습니다', '교육용 분류와 검색·제외 조건을 설정에서 조절할 수 있어요.', '일반 대회 보기', lambda: self.collection_tabs.setCurrentIndex(0)
+                title, text, action, fn = '교육용 대회 없음', '교육용 분류와 검색·제외 조건을 설정에서 조절할 수 있습니다.', '일반 대회 보기', lambda: self.collection_tabs.setCurrentIndex(0)
             elif separate and education_count and rows:
-                title, text, action, fn = '교육용 대회를 확인해보세요', '현재 조건에 맞는 입문·연습용 대회가 별도 보기에 있습니다.', '교육용 보기', lambda: self.collection_tabs.setCurrentIndex(1)
+                title, text, action, fn = '일반 대회 없음', '현재 조건에 맞는 입문·연습 대회는 교육용 보기에 있습니다.', '교육용 보기', lambda: self.collection_tabs.setCurrentIndex(1)
             elif rows:
-                title, text, action, fn = '현재 조건에 맞는 대회가 없습니다', '참가 대상이나 추천 점수 조건을 조정해보세요.', '추천 조건 조정', lambda: self.navigate(3)
+                title, text, action, fn = '추천 대회 없음', '참가 대상이나 추천 점수 조건을 조정할 수 있습니다.', '추천 조건 조정', lambda: self.navigate(3)
             elif self.credentials:
-                title, text, action, fn = '대회를 확인해보세요', '지금 확인을 누르면 최신 목록을 가져옵니다.', '지금 확인', self.refresh
+                title, text, action, fn = '대회 목록 미수집', '최신 대회 목록을 가져올 수 있습니다.', '지금 확인', self.refresh
             else:
-                title, text, action, fn = 'Kaggle을 연결해 주세요', '계정을 연결하면 관심 분야에 맞는 대회를 모아드립니다.', '계정 연결', self.connect_account
+                title, text, action, fn = 'Kaggle 계정 연결', '계정 연결 후 대회 목록을 수집합니다.', '계정 연결', self.connect_account
             self.empty_title = title
             p.addWidget(label(title, 'title'))
             p.addWidget(label(text, 'muted', True))
@@ -903,19 +903,19 @@ class Window(QMainWindow):
             top.addWidget(remove, 0, Qt.AlignmentFlag.AlignTop)
             body.addLayout(top)
             desc = plain(item.get('description', ''))
-            body.addWidget(label(desc[:110] + ('…' if len(desc) > 110 else ''), 'muted', True))
-            meta = QHBoxLayout()
+            body.addWidget(label(desc[:110] + ('…' if len(desc) > 110 else ''), 'cardDescription', True))
             tag = label(v['topics'][0] if v['topics'] else '분야 확인', 'chip')
-            tag.setStyleSheet(f'background:{background};color:{color};border-radius:11px;padding:5px 9px;font-size:12px;')
-            meta.addWidget(tag)
+            tag.setStyleSheet(f'background:{background};color:{color};border-radius:11px;padding:5px 9px;font-size:14px;')
+            body.addWidget(tag, 0, Qt.AlignmentFlag.AlignLeft)
+            meta = QHBoxLayout()
             cal = QLabel()
-            cal.setPixmap(icon('calendar-days', size=16).pixmap(16, 16))
+            cal.setPixmap(icon('calendar-days', size=18).pixmap(18, 18))
             meta.addWidget(cal)
             end = date(item.get('deadline'))
-            meta.addWidget(label(end.astimezone(KST).strftime('%Y.%m.%d') if end else '마감 확인', 'muted'))
+            meta.addWidget(label(end.astimezone(KST).strftime('%Y.%m.%d') if end else '마감 확인', 'cardDate'))
             if end:
                 long_practice = v['education'] and end > now() + timedelta(days=365)
-                meta.addWidget(label('장기 운영' if long_practice else deadline_badge(item.get('deadline')), 'chip'))
+                meta.addWidget(label('장기 운영' if long_practice else deadline_badge(item.get('deadline')), 'deadline'))
             meta.addStretch()
             body.addLayout(meta)
             if row['exclusions']:
@@ -1001,7 +1001,7 @@ class Window(QMainWindow):
             end = date(item.get('deadline'))
             long_practice = v['education'] and end and end > now() + timedelta(days=365)
             deadline_text = display_date(item.get('deadline')) + (' · API상 마감' if long_practice else '  ' + deadline_badge(item.get('deadline')))
-            summary = '<h2 style="font-size:28px;">' + esc(item.get('title')) + '</h2><p style="font-size:17px;color:#627086;">' + esc(plain(item.get('description'))) + '</p>'
+            summary = '<h2 style="font-size:28px;">' + esc(item.get('title')) + '</h2><p style="font-size:18px;color:#627086;">' + esc(plain(item.get('description'))) + '</p>'
             summary += '<p style="color:#0084ae;font-weight:600">' + esc(' · '.join(v['topics']) or '분야 확인 필요') + '</p>'
             summary += classification
             summary += ('<h3>장기 운영 일정</h3><p>' if long_practice else '<h3>제출 마감</h3><p>') + esc(deadline_text) + '</p>'
@@ -1195,7 +1195,7 @@ class Window(QMainWindow):
         pa.addWidget(label('대회 설명의 명시적 문구로 구분하며, 최종 참가 자격은 원문에서 확인합니다.', 'muted', True))
         box.addWidget(participation)
         hardware, h = card()
-        h.addWidget(label('사용 가능한 환경', 'title'))
+        h.addWidget(label('사용 환경', 'title'))
         fields = QGridLayout()
         self.name_input = QLineEdit(p['name'])
         self.name_input.setMaxLength(100)
@@ -1216,7 +1216,7 @@ class Window(QMainWindow):
         h.addWidget(label('자원 요구량이 공개되지 않은 대회는 상세 화면에 확인 필요로 표시합니다.', 'muted', True))
         box.addWidget(hardware)
         filters, f = card()
-        f.addWidget(label('제외 조건과 알림', 'title'))
+        f.addWidget(label('수집·필터 설정', 'title'))
         self.offline = QCheckBox('오프라인 참석 필수 문구가 감지된 대회 제외')
         self.offline.setChecked(p['exclude_offline'])
         self.notifications = QCheckBox('PC 알림 받기')
@@ -1261,7 +1261,7 @@ class Window(QMainWindow):
         ec.addWidget(label('교육용도 계속 수집·보관하며 관심 등록이 가능합니다. 관심 대회의 변경·마감 알림은 기존 설정을 따릅니다.', 'muted', True))
         box.addWidget(education_card)
         notification_card, nc = card()
-        nc.addWidget(label('알림 종류와 시간', 'title'))
+        nc.addWidget(label('알림 설정', 'title'))
         nc.addWidget(self.notifications)
         self.notify_kind_checks = {}
         for kind, text in NOTIFY_KINDS.items():
