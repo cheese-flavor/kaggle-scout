@@ -5,54 +5,19 @@ import os
 from pathlib import Path
 import sys
 from datetime import timedelta
-from PySide6.QtCore import Qt, QThread, Signal, QTimer, QLockFile, QUrl, QTime
-from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QLockFile, QUrl, QTime, QSize
+from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction, QKeyEvent
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
     QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
-    QFileDialog, QSystemTrayIcon, QMenu, QSplitter, QSlider, QListWidget, QListWidgetItem, QTimeEdit)
+    QFileDialog, QSystemTrayIcon, QMenu, QSplitter, QSlider, QListWidget, QListWidgetItem, QTimeEdit, QToolButton, QTabWidget, QTabBar, QWidgetAction)
 from core import Store, Kaggle, DEFAULT, TOPICS, AUDIENCES, validate_profile, read_json_file, validate_credentials, assess, now, date, display_date, plain, slug
 from installation import data_directory, migrate_database
-from core import exclusion_details, EXCLUSION_LABELS, NOTIFY_KINDS
+from core import exclusion_details, EXCLUSION_LABELS, NOTIFY_KINDS, KST
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
-STYLE = '''
-* { font-family: "Pretendard", "Malgun Gothic"; font-size: 14px; font-weight: 400; color: #23364b; }
-QMainWindow, QDialog { background: #f5f8fc; }
-QWidget#sidebar { background: #ffffff; border-right: 1px solid #e3ebf3; }
-QFrame#card { background: #ffffff; border: 1px solid #e2eaf2; border-radius: 14px; }
-QFrame#hero { background: #e9f8ff; border: 1px solid #c5edff; border-radius: 16px; }
-QLabel { background: transparent; border: none; }
-QLabel#muted { color: #586c82; font-size: 14px; }
-QLabel#eyebrow { color: #087da4; font-size: 12px; font-weight: 600; }
-QLabel#heading { font-size: 25px; font-weight: 600; color: #152b42; }
-QLabel#title { font-size: 17px; font-weight: 600; }
-QPushButton { background: white; border: 1px solid #dbe5ee; border-radius: 8px; padding: 10px 16px; font-weight: 500; }
-QPushButton:hover { background: #eef8fd; border-color: #9edff9; }
-QPushButton:pressed { background: #d3f0fc; }
-QPushButton:disabled { color: #9daab6; background: #edf2f7; }
-QPushButton#primary { background: #20beff; color: #10374b; border-color: #20beff; }
-QPushButton#primary:hover { background: #60d0ff; }
-QPushButton#primary:disabled { background: #edf2f7; color: #91a0af; border-color: #dbe5ee; }
-QPushButton#nav { text-align: left; border: none; background: transparent; padding: 13px 16px; color: #63758a; }
-QPushButton#nav:checked { background: #e8f8ff; color: #027eab; }
-QLineEdit, QComboBox, QSpinBox { background: #ffffff; border: 1px solid #d9e4ee; border-radius: 8px; padding: 10px; min-height: 18px; }
-QLineEdit:focus, QSpinBox:focus { border: 1px solid #20beff; }
-QCheckBox { spacing: 10px; padding: 5px; }
-QCheckBox::indicator { width: 17px; height: 17px; }
-QScrollArea { border: none; background: transparent; }
-QScrollArea > QWidget > QWidget { background: transparent; }
-QTextBrowser { background: #ffffff; border: none; padding: 12px; }
-QScrollBar:vertical { background: transparent; width: 8px; margin: 3px; }
-QScrollBar::handle:vertical { background: #c8d8e5; min-height: 30px; border-radius: 3px; }
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-QSlider::groove:horizontal { height: 6px; background: #dfe9f2; border-radius: 3px; }
-QSlider::sub-page:horizontal { background: #20beff; border-radius: 3px; }
-QSlider::handle:horizontal { background: #ffffff; border: 2px solid #159cd2; width: 16px; margin: -7px 0; border-radius: 9px; }
-QSlider::handle:horizontal:focus { border: 3px solid #102c43; }
-QWidget#settingsFooter { background: #ffffff; border-top: 1px solid #dfe9f2; }
-'''
+from ui_theme import STYLE, icon
 
 def label(text, kind=None, wrap=False):
     w = QLabel()
@@ -63,8 +28,18 @@ def label(text, kind=None, wrap=False):
     w.setWordWrap(wrap)
     return w
 
-def button(text, fn, primary=False):
+def button(text, fn, primary=False, icon_name=None):
+    mappings = {'Kaggle API 설정 열기 ↗': ('Kaggle API 설정 열기', 'arrow-up-right'), '연결 확인하고 시작하기 →': ('연결하고 시작하기', 'arrow-right'), '↻  지금 확인': ('최신 대회 확인', 'refresh-cw'), '← 이전': ('이전', 'chevron-left'),
+                '다음 →': ('다음', 'chevron-right'), '☆ 관심': ('관심 등록', 'bookmark'),
+                'Kaggle 원문 열기 ↗': ('대회 살펴보기', 'arrow-right'), '참가 규칙 확인': ('참가 조건 확인', 'layers'),
+                '숨기기': ('숨기기', 'eye-off'), '설정 저장': ('설정 저장', 'check'),
+                '내보내기': ('내보내기', 'download'), '가져오기': ('가져오기', 'upload'),
+                '연결 해제': ('연결 해제', 'log-out'), '계정 연결 / 다시 연결': ('계정 연결', 'shield-check')}
+    text, automatic_icon = mappings.get(text, (text, None))
     b = QPushButton(text)
+    if icon_name or automatic_icon:
+        b.setIcon(icon(icon_name or automatic_icon, '#137fa4' if primary else '#637087'))
+        b.setIconSize(QSize(19, 19))
     if primary:
         b.setObjectName('primary')
     b.clicked.connect(fn)
@@ -85,6 +60,55 @@ def clear(layout):
             entry.widget().deleteLater()
         elif entry.layout():
             clear(entry.layout())
+
+class CompetitionCard(QFrame):
+    clicked = Signal()
+
+    def __init__(self, title):
+        super().__init__()
+        self.setObjectName('competitionCard')
+        self.setProperty('selected', False)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAccessibleName('대회 상세 보기: ' + title)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.clicked.emit()
+            event.accept()
+        else:
+            super().keyPressEvent(event)
+
+def topic_visual(topics):
+    if 'LLM / 생성형 AI' in topics or 'NLP' in topics:
+        return 'message-circle', '#8553b8', '#f0eafb'
+    if '시계열' in topics:
+        return 'trending-up', '#27a48c', '#e6f6f0'
+    if '이미지 / 영상' in topics:
+        return 'layers', '#637bc1', '#edf0fb'
+    return 'chart-no-axes-column-increasing', '#04a9d7', '#e0f7ff'
+
+def icon_tile(name, color, background):
+    tile = QLabel()
+    tile.setPixmap(icon(name, color, 30).pixmap(30, 30))
+    tile.setFixedSize(54, 54)
+    tile.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    tile.setStyleSheet(f'background:{background}; border-radius:17px;')
+    return tile
+
+def deadline_badge(value):
+    end = date(value)
+    if not end:
+        return ''
+    if end <= now():
+        return '마감'
+    days = (end.astimezone(KST).date() - now().astimezone(KST).date()).days
+    return '오늘 마감' if days == 0 else f'D-{days}'
 
 class SafeTextBrowser(QTextBrowser):
     def __init__(self):
@@ -343,7 +367,7 @@ class Window(QMainWindow):
         self.await_profile = False
         self.setWindowTitle('Kaggle Scout' + (' · 디자인 미리보기 / 가상 데이터' if preview else ''))
         self.setMinimumSize(960, 680)
-        self.resize(1140, 780)
+        self.resize(1180, 820)
         self.setWindowIcon(QIcon(str(ASSETS / 'scout.ico')))
         shell = QWidget()
         self.setCentralWidget(shell)
@@ -352,24 +376,36 @@ class Window(QMainWindow):
         root.setSpacing(0)
         sidebar = QWidget()
         sidebar.setObjectName('sidebar')
-        sidebar.setFixedWidth(180)
+        sidebar.setFixedWidth(118)
         side = QVBoxLayout(sidebar)
-        side.setContentsMargins(16, 24, 16, 20)
-        side.setSpacing(10)
+        side.setContentsMargins(16, 30, 16, 20)
+        side.setSpacing(14)
         mark = QLabel()
-        mark.setPixmap(QIcon(str(ASSETS / 'scout.ico')).pixmap(38, 38))
+        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        mark.setPixmap(QIcon(str(ASSETS / 'scout.ico')).pixmap(42, 42))
         side.addWidget(mark)
-        side.addWidget(label('Kaggle Scout', 'title'))
-        side.addSpacing(16)
+        brand = label('Kaggle\nScout', 'brand')
+        brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        side.addWidget(brand)
+        side.addSpacing(18)
         self.nav = []
-        for i, text in enumerate(['◈   대회 탐색', '☆   관심 대회', '◷   알림 기록', '⚙   나의 설정']):
-            b = button(text, lambda checked=False, index=i: self.navigate(index))
+        self.nav_icons = ['trophy', 'bookmark', 'bell', 'settings-2']
+        for i, text in enumerate(['대회', '관심', '알림', '설정']):
+            b = QToolButton()
+            b.setText(text)
+            b.setIcon(icon(self.nav_icons[i], size=25))
+            b.setIconSize(QSize(25, 25))
+            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+            b.setFixedSize(84, 80)
             b.setObjectName('nav')
             b.setCheckable(True)
+            b.setAccessibleName(text)
+            b.clicked.connect(lambda checked=False, index=i: self.navigate(index))
             self.nav.append(b)
             side.addWidget(b)
         side.addStretch()
         self.profile_summary = label('', 'muted', True)
+        self.profile_summary.setAlignment(Qt.AlignmentFlag.AlignCenter)
         side.addWidget(self.profile_summary)
         root.addWidget(sidebar)
         self.pages = QStackedWidget()
@@ -462,9 +498,10 @@ class Window(QMainWindow):
         self.page_index = 0
         for i, b in enumerate(self.nav):
             b.setChecked(i == index)
+            b.setIcon(icon(self.nav_icons[i], '#0088b5' if i == index else '#627087', 25))
         self.pages.setCurrentIndex(0 if index <= 1 else index - 1)
         if index <= 1:
-            self.heading.setText('관심 대회' if index == 1 else '대회 탐색')
+            self.heading.setText('관심 대회를 한곳에' if index == 1 else '나에게 맞는 다음 도전')
             self.render()
         elif index == 2:
             self.render_events()
@@ -472,47 +509,68 @@ class Window(QMainWindow):
     def build_discovery(self):
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(22, 22, 22, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(28, 38, 24, 16)
+        layout.setSpacing(14)
         top = QHBoxLayout()
-        titlebox = QVBoxLayout()
-        self.heading = label('대회 탐색', 'heading')
-        titlebox.addWidget(self.heading)
-        top.addLayout(titlebox)
-        top.addStretch()
-        self.refresh_button = button('↻  지금 확인', self.refresh, True)
-        top.addWidget(self.refresh_button)
-        layout.addLayout(top)
+        titles = QVBoxLayout()
+        self.heading = label('나에게 맞는 다음 도전', 'heading')
+        titles.addWidget(self.heading)
         self.hero_text = label('', 'muted', True)
-        layout.addWidget(self.hero_text)
+        titles.addWidget(self.hero_text)
+        top.addLayout(titles, 1)
+        self.profile_pill = label('', 'profilePill')
+        top.addWidget(self.profile_pill, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(top)
         self.stats = label('', 'muted')
-        layout.addWidget(self.stats)
-        filters = QHBoxLayout()
+        self.stats.hide()
+        search_row = QHBoxLayout()
         self.search = QLineEdit()
+        self.search.setObjectName('search')
         self.search.setClearButtonEnabled(True)
-        self.search.setPlaceholderText('대회명, 주제, 설명 검색…')
+        self.search.addAction(icon('search'), QLineEdit.ActionPosition.LeadingPosition)
+        self.search.setPlaceholderText('대회명, 주제, 설명으로 검색하기')
         self.search.textChanged.connect(self.reset_page)
-        filters.addWidget(self.search, 1)
+        search_row.addWidget(self.search, 1)
+        self.refresh_button = button('↻  지금 확인', self.refresh)
+        search_row.addWidget(self.refresh_button)
+        layout.addLayout(search_row)
+        chip_row = QHBoxLayout()
+        self.quick_chips = []
+        for text in ['추천', '전체', '정형 데이터', 'LLM · NLP']:
+            chip = button(text, lambda checked=False, t=text: self.choose_chip(t))
+            chip.setObjectName('chipButton')
+            chip.setCheckable(True)
+            self.quick_chips.append(chip)
+            chip_row.addWidget(chip)
+        chip_row.addStretch()
+        filter_button = button('필터', lambda: None, icon_name='sliders-horizontal')
+        menu = QMenu(filter_button)
+        filter_panel = QWidget()
+        filters = QVBoxLayout(filter_panel)
+        filters.setContentsMargins(14, 12, 14, 12)
+        filters.addWidget(label('분야와 정렬', 'title'))
         self.topic = QComboBox()
-        self.topic.addItems(['모든 분야'] + list(TOPICS))
+        self.topic.addItems(['모든 분야'] + list(TOPICS) + ['LLM · NLP'])
         self.topic.currentTextChanged.connect(self.reset_page)
         filters.addWidget(self.topic)
         self.sort = QComboBox()
         self.sort.addItems(['추천 순', '마감 임박 순', '최근 발견 순'])
         self.sort.currentTextChanged.connect(self.reset_page)
         filters.addWidget(self.sort)
-        layout.addLayout(filters)
-        switches = QHBoxLayout()
-        self.show_excluded = QCheckBox('제외·마감 대회 표시')
-        self.show_hidden = QCheckBox('숨긴 대회 표시')
+        self.show_excluded = QCheckBox('제외·마감 대회도 보기')
+        self.show_hidden = QCheckBox('숨긴 대회도 보기')
         self.show_excluded.toggled.connect(self.reset_page)
         self.show_hidden.toggled.connect(self.reset_page)
-        switches.addWidget(self.show_excluded)
-        switches.addWidget(self.show_hidden)
-        switches.addStretch()
-        self.exclusion_button = button('제외 이유', self.show_exclusion_dialog)
-        switches.addWidget(self.exclusion_button)
-        layout.addLayout(switches)
+        filters.addWidget(self.show_excluded)
+        filters.addWidget(self.show_hidden)
+        self.exclusion_button = button('제외 이유', self.show_exclusion_dialog, icon_name='eye-off')
+        filters.addWidget(self.exclusion_button)
+        action = QWidgetAction(menu)
+        action.setDefaultWidget(filter_panel)
+        menu.addAction(action)
+        filter_button.setMenu(menu)
+        chip_row.addWidget(filter_button)
+        layout.addLayout(chip_row)
         split = QSplitter(Qt.Orientation.Horizontal)
         scroll = QScrollArea()
         self.list_scroll = scroll
@@ -520,30 +578,41 @@ class Window(QMainWindow):
         contents = QWidget()
         self.cards = QVBoxLayout(contents)
         self.cards.setContentsMargins(0, 0, 8, 0)
-        self.cards.setSpacing(12)
+        self.cards.setSpacing(8)
         scroll.setWidget(contents)
         split.addWidget(scroll)
         detail, d = card()
         detail.setMinimumWidth(290)
-        d.setContentsMargins(16, 16, 16, 16)
-        d.addWidget(label('대회 정보', 'title'))
+        d.setContentsMargins(22, 22, 22, 22)
+        self.detail_tabs = QTabBar()
+        self.detail_tabs.addTab('요약')
+        self.detail_tabs.addTab('전체 정보')
+        d.addWidget(self.detail_tabs)
         self.detail = SafeTextBrowser()
-        self.detail.document().setDefaultStyleSheet('body {font-family: Pretendard; font-size:14px; color:#23364b;} h2 {font-size:21px; font-weight:600; margin-bottom:16px;} h3 {font-size:16px; font-weight:600; margin-top:22px;} p {line-height:145%; margin-bottom:12px;}')
-        self.detail.setMinimumHeight(140)
-        self.detail.setOpenExternalLinks(False)
+        self.detail.document().setDefaultStyleSheet('body {font-family:Pretendard;font-size:15px;color:#526279;} h2 {font-size:24px;font-weight:700;color:#14243c;margin-bottom:16px;} h3 {font-size:16px;font-weight:600;color:#172d43;margin-top:22px;} p {line-height:150%;margin-bottom:16px;}')
+        self.detail.setMinimumHeight(0)
         d.addWidget(self.detail, 1)
+        self.original_button = button('Kaggle 원문 열기 ↗', self.open_selected, True)
+        d.addWidget(self.original_button)
         actions = QHBoxLayout()
         self.star_button = button('☆ 관심', self.star)
+        self.rules_button = button('참가 규칙 확인', self.load_pages)
         self.hide_button = button('숨기기', self.hide_item)
         actions.addWidget(self.star_button)
         actions.addWidget(self.hide_button)
+        self.more_button = button('더보기', lambda: None, icon_name='sliders-horizontal')
+        more_menu = QMenu(self.more_button)
+        more_menu.addAction(icon('bookmark'), '관심 등록 / 해제', self.star)
+        more_menu.addAction(icon('layers'), '참가 조건 확인', self.load_pages)
+        more_menu.addAction(icon('eye-off'), '숨기기 / 해제', self.hide_item)
+        self.more_button.setMenu(more_menu)
+        self.more_button.hide()
+        actions.addWidget(self.more_button)
         d.addLayout(actions)
-        self.rules_button = button('참가 규칙 확인', self.load_pages)
-        self.original_button = button('Kaggle 원문 열기 ↗', self.open_selected, True)
         d.addWidget(self.rules_button)
-        d.addWidget(self.original_button)
+        self.detail_tabs.currentChanged.connect(lambda _: self.select(self.selected))
         split.addWidget(detail)
-        split.setSizes([600, 370])
+        split.setSizes([640, 380])
         layout.addWidget(split, 1)
         paging = QHBoxLayout()
         self.page_label = label('1 / 1 페이지', 'muted')
@@ -551,7 +620,7 @@ class Window(QMainWindow):
         paging.addStretch()
         self.display_size = QComboBox()
         for size in (5, 10, 20, 50):
-            self.display_size.addItem(f'페이지당 {size}개', size)
+            self.display_size.addItem(f'{size}개씩 보기', size)
         self.display_size.setCurrentIndex(self.display_size.findData(self.store.profile()['page_size']))
         self.display_size.currentIndexChanged.connect(self.change_page_size)
         paging.addWidget(self.display_size)
@@ -563,6 +632,27 @@ class Window(QMainWindow):
         self.status = label('Kaggle 연결 대기', 'muted', True)
         layout.addWidget(self.status)
         self.pages.addWidget(page)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'more_button'):
+            compact = self.height() < 760
+            self.star_button.setVisible(not compact)
+            self.hide_button.setVisible(not compact)
+            self.rules_button.setVisible(not compact)
+            self.more_button.setVisible(compact)
+
+    def choose_chip(self, text):
+        self.topic.setCurrentText({'정형 데이터': '정형 데이터 / SQL', 'LLM · NLP': 'LLM · NLP'}.get(text, '모든 분야'))
+        self.show_excluded.setChecked(text == '전체')
+        self.reset_page()
+
+    def sync_chips(self):
+        chosen = ('정형 데이터' if self.topic.currentText() == '정형 데이터 / SQL' else
+                  'LLM · NLP' if self.topic.currentText() == 'LLM · NLP' else
+                  ('전체' if self.show_excluded.isChecked() else '추천') if self.topic.currentIndex() == 0 else '')
+        for b in self.quick_chips:
+            b.setChecked(b.text() == chosen)
 
     def reset_page(self, *_):
         self.page_index = 0
@@ -598,8 +688,11 @@ class Window(QMainWindow):
         if not hasattr(self, 'cards'):
             return
         profile = self.store.profile()
-        self.profile_summary.setText(f"{profile['name']}\n{profile['gpu']} · {profile['vram']}GB")
-        self.hero_text.setText(f"관심 분야 {len(profile['topics'])}개 · {profile['interval']}분마다 확인")
+        self.profile_summary.setText(profile['name'])
+        self.profile_pill.setText(f"{profile['gpu']} · {profile['vram']}GB")
+        self.sync_chips()
+        self.hero_text.setText(('예시 데이터 화면 · ' if self.preview else '') + '관심 분야에 맞는 다음 도전을 찾아보세요.')
+        self.hero_text.setToolTip(f"관심 분야 {len(profile['topics'])}개 · {profile['interval']}분마다 확인")
         rows = self.store.rows()
         excluded_count = sum(bool(exclusion_details(json.loads(r['body']), profile)) for r in rows if not r['hidden'])
         self.exclusion_button.setText(f'제외 이유 ({excluded_count})')
@@ -619,7 +712,10 @@ class Window(QMainWindow):
                 continue
             if query and query not in plain(json.dumps(item, ensure_ascii=False)).lower():
                 continue
-            if self.topic.currentIndex() and self.topic.currentText() not in verdict['topics']:
+            if self.topic.currentText() == 'LLM · NLP':
+                if not {'NLP', 'LLM / 생성형 AI'}.intersection(verdict['topics']):
+                    continue
+            elif self.topic.currentIndex() and self.topic.currentText() not in verdict['topics']:
                 continue
             results.append(row)
         if self.sort.currentIndex() == 1:
@@ -657,24 +753,49 @@ class Window(QMainWindow):
             p.addWidget(label(text, 'muted', True))
             p.addWidget(button(action, fn))
             self.cards.addWidget(panel)
+        self.card_frames = {}
         for row in results:
             item, v = row['item'], row['verdict']
-            panel, p = card()
-            panel.setMinimumHeight(190)
-            p.setContentsMargins(18, 16, 18, 16)
-            p.setSpacing(8)
-            p.addWidget(label(('★  ' if row['starred'] else '') + item.get('title', row['ref']), 'title', True))
-            p.addWidget(label('  ·  '.join(v['topics']) or '분야 미분류', 'eyebrow', True))
+            title = str(item.get('title', row['ref']))
+            panel = CompetitionCard(title)
+            self.card_frames[row['ref']] = panel
+            panel.clicked.connect(lambda ref=row['ref']: self.select(ref))
+            panel.setMinimumHeight(210)
+            p = QHBoxLayout(panel)
+            p.setContentsMargins(18, 20, 18, 20)
+            p.setSpacing(16)
+            topic_icon, color, background = topic_visual(v['topics'])
+            p.addWidget(icon_tile(topic_icon, color, background), 0, Qt.AlignmentFlag.AlignVCenter)
+            body = QVBoxLayout()
+            body.setSpacing(10)
+            top = QHBoxLayout()
+            name = label(title, 'title', True)
+            top.addWidget(name, 1)
+            save = button('', lambda checked=False, ref=row['ref']: self.toggle_bookmark(ref), icon_name='bookmark-check' if row['starred'] else 'bookmark')
+            save.setObjectName('iconButton')
+            save.setFixedSize(36, 36)
+            save.setAccessibleName('관심 해제' if row['starred'] else '관심 등록')
+            save.setToolTip(save.accessibleName())
+            top.addWidget(save, 0, Qt.AlignmentFlag.AlignTop)
+            body.addLayout(top)
             desc = plain(item.get('description', ''))
-            p.addWidget(label(desc[:110] + ('…' if len(desc) > 110 else ''), 'muted', True))
-            p.addWidget(label('제출 마감  ' + display_date(item.get('deadline')), 'muted'))
-            line = QHBoxLayout()
-            line.addWidget(label(item.get('reward') or '보상 미정', 'muted'))
-            line.addStretch()
-            line.addWidget(button('자세히 →', lambda checked=False, ref=row['ref']: self.select(ref)))
-            p.addLayout(line)
+            body.addWidget(label(desc[:110] + ('…' if len(desc) > 110 else ''), 'muted', True))
+            meta = QHBoxLayout()
+            tag = label(v['topics'][0] if v['topics'] else '분야 확인', 'chip')
+            tag.setStyleSheet(f'background:{background};color:{color};border-radius:11px;padding:5px 9px;font-size:12px;')
+            meta.addWidget(tag)
+            cal = QLabel()
+            cal.setPixmap(icon('calendar-days', size=16).pixmap(16, 16))
+            meta.addWidget(cal)
+            end = date(item.get('deadline'))
+            meta.addWidget(label(end.astimezone(KST).strftime('%Y.%m.%d') if end else '마감 확인', 'muted'))
+            if end:
+                meta.addWidget(label(deadline_badge(item.get('deadline')), 'chip'))
+            meta.addStretch()
+            body.addLayout(meta)
             if row['exclusions']:
-                p.addWidget(label('제외: ' + ' · '.join(dict.fromkeys(d['label'] for d in row['exclusions'])), 'muted', True))
+                body.addWidget(label('제외: ' + ' · '.join(dict.fromkeys(d['label'] for d in row['exclusions'])), 'muted', True))
+            p.addLayout(body, 1)
             self.cards.addWidget(panel)
         self.cards.addStretch()
         visible = {r['ref'] for r in results}
@@ -692,15 +813,21 @@ class Window(QMainWindow):
 
     def select(self, ref):
         self.selected = ref
+        for key, frame in getattr(self, 'card_frames', {}).items():
+            frame.setProperty('selected', key == ref)
+            frame.style().unpolish(frame)
+            frame.style().polish(frame)
+            frame.update()
         row = self.selected_row()
-        for b in (self.star_button, self.hide_button, self.rules_button, self.original_button):
+        for b in (self.star_button, self.hide_button, self.rules_button, self.original_button, self.more_button):
             b.setEnabled(row is not None)
         if not row:
-            self.star_button.setText('☆ 관심')
+            self.star_button.setText('관심 등록')
             self.hide_button.setText('숨기기')
             self.detail.setHtml('<h2>대회 상세 정보</h2><p>대회를 선택하면 일정과 추천 이유를 확인할 수 있습니다.</p>')
             return
-        self.star_button.setText('★ 관심 해제' if row['starred'] else '☆ 관심')
+        self.star_button.setText('관심 해제' if row['starred'] else '관심 등록')
+        self.star_button.setIcon(icon('bookmark-check' if row['starred'] else 'bookmark'))
         self.hide_button.setText('숨김 해제' if row['hidden'] else '숨기기')
         item = json.loads(row['body'])
         v = assess(item, self.store.profile())
@@ -723,7 +850,24 @@ class Window(QMainWindow):
         if item.get('pages'):
             body += '<h3>추가 조회한 원문</h3><p>' + esc(plain(item['pages'])).replace('\n', '<br>') + '</p>'
         body += '<p style="color:#6c7d90">설명·규칙이 변경될 수 있습니다. 확정되지 않은 조건은 확인 필요로 표시합니다.</p>'
+        if self.detail_tabs.currentIndex() == 0:
+            end = date(item.get('deadline'))
+            deadline_text = display_date(item.get('deadline')) + '  ' + deadline_badge(item.get('deadline'))
+            summary = '<h2 style="font-size:28px;">' + esc(item.get('title')) + '</h2><p style="font-size:17px;color:#627086;">' + esc(plain(item.get('description'))) + '</p>'
+            summary += '<p style="color:#0084ae;font-weight:600">' + esc(' · '.join(v['topics']) or '분야 확인 필요') + '</p>'
+            summary += '<h3>제출 마감</h3><p>' + esc(deadline_text) + '</p>'
+            summary += '<h3>추천 이유</h3><p>' + '<br>'.join(esc(x) for x in v['reasons']) + '</p>'
+            summary += '<h3>참가 조건</h3><p>' + esc(v['eligibility']) + '</p>'
+            if details:
+                summary += '<h3>현재 제외 이유</h3><p>' + '<br>'.join(esc(d['detail']) for d in details) + '</p>'
+            body = summary
         self.detail.setHtml(body)
+
+    def toggle_bookmark(self, ref):
+        row = next((r for r in self.store.rows() if r['ref'] == ref), None)
+        if row:
+            self.store.flag(ref, 'starred', not row['starred'])
+            self.render()
 
     def star(self):
         row = self.selected_row()
@@ -877,6 +1021,7 @@ class Window(QMainWindow):
         self.topic_checks = {}
         for n, name in enumerate(TOPICS):
             chk = QCheckBox(name)
+            chk.setObjectName('choice')
             chk.setChecked(name in p['topics'])
             self.topic_checks[name] = chk
             grid.addWidget(chk, n // 2, n % 2)
@@ -888,6 +1033,7 @@ class Window(QMainWindow):
         audience_grid = QGridLayout()
         for n, (key, text) in enumerate(AUDIENCES.items()):
             chk = QCheckBox(text)
+            chk.setObjectName('choice')
             chk.setChecked(key in p['audiences'])
             self.audience_checks[key] = chk
             audience_grid.addWidget(chk, n // 2, n % 2)
@@ -984,7 +1130,29 @@ class Window(QMainWindow):
         outer = QVBoxLayout(container)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
-        outer.addWidget(scroll, 1)
+        outer.setContentsMargins(20, 18, 20, 0)
+        outer.addWidget(label('나의 설정', 'heading'))
+        self.settings_tabs = QTabWidget()
+        self.settings_tab_scrolls = []
+        groups = [('프로필·환경', [connection, hardware]), ('관심·참가', [interests, participation]),
+                  ('수집·보기', [filters]), ('알림', [notification_card])]
+        for title, panels in groups:
+            tab_scroll = QScrollArea()
+            tab_scroll.setWidgetResizable(True)
+            tab_page = QWidget()
+            tab_box = QVBoxLayout(tab_page)
+            tab_box.setContentsMargins(2, 14, 8, 16)
+            tab_box.setSpacing(16)
+            for panel in panels:
+                box.removeWidget(panel)
+                tab_box.addWidget(panel)
+            tab_box.addStretch()
+            tab_scroll.setWidget(tab_page)
+            self.settings_tabs.addTab(tab_scroll, title)
+            self.settings_tab_scrolls.append(tab_scroll)
+        self.settings_scroll = self.settings_tab_scrolls[0]
+        self.settings_tabs.currentChanged.connect(self.settings_section_changed)
+        outer.addWidget(self.settings_tabs, 1)
         footer = QWidget()
         footer.setObjectName('settingsFooter')
         bottom = QHBoxLayout(footer)
@@ -1014,6 +1182,9 @@ class Window(QMainWindow):
         self.notify_start.timeChanged.connect(self.queue_settings_preview)
         self.notify_end.timeChanged.connect(self.queue_settings_preview)
         self.update_notification_controls()
+
+    def settings_section_changed(self, index):
+        self.settings_scroll = self.settings_tab_scrolls[index]
 
     def update_notification_controls(self, *_):
         enabled = self.notifications.isChecked()
