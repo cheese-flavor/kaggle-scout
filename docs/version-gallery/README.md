@@ -4,6 +4,16 @@
 
 최신 변경부터 보여줍니다. 각 버전의 전체 원본은 아래 **원본 화면 보관함**에 그대로 남깁니다.
 
+## v0.5.0 → v0.6.0
+
+| 이전 · v0.5.0 | 이후 · v0.6.0 |
+|---|---|
+| [![이전 화면](v0.5.0/dashboard-final-v050.png)](v0.5.0/dashboard-final-v050.png) | [![이후 화면](v0.6.0/dashboard-v060.png)](v0.6.0/dashboard-v060.png) |
+
+- 일반 대회와 교육용을 별도 보기로 나눠 입문 대회가 일반 목록을 채우지 않도록 했습니다.
+- 교육용은 삭제하지 않으며 관심 등록·검색·페이지 이동을 계속 사용할 수 있습니다. [교육용 화면](v0.6.0/education-v060.png)
+- 수집·보기 설정에서 합쳐 보기, Playground 교육용 포함, 교육용 신규 알림을 조절할 수 있습니다. [설정 화면](v0.6.0/collection-settings-v060.png)
+
 ## v0.4.0 → v0.5.0
 
 | 이전 · v0.4.0 | 이후 · v0.5.0 |
@@ -22,7 +32,7 @@
 
 - 탐색의 기본 배치는 유지하면서 대회별 제외 이유를 확인할 수 있게 했습니다.
 - 알림 종류와 KST 수신 시간 설정을 추가했습니다. 기능 화면은 원본 보관함에 있습니다.
-- 왼쪽 탐색 이미지는 v0.4.0 배포에 보관된 v0.3.0 촬영본입니다. v0.4.0의 새 기능은 별도 원본 화면에서 확인할 수 있습니다.
+- v0.4.0 대표 탐색 이미지는 배포에 보관된 v0.3.0 촬영본입니다. v0.4.0의 새 기능은 별도 원본 화면에서 확인할 수 있습니다.
 
 ## v0.2.0 → v0.3.0
 
@@ -96,6 +106,19 @@
 ![v0.5.0 notifications-v050](v0.5.0/notifications-v050.png)
 
 ![v0.5.0 dashboard-final-v050](v0.5.0/dashboard-final-v050.png)
+
+</details>
+
+<details>
+<summary>v0.6.0 전체 화면</summary>
+
+![v0.6.0 dashboard-v060](v0.6.0/dashboard-v060.png)
+
+![v0.6.0 education-v060](v0.6.0/education-v060.png)
+
+![v0.6.0 education-small-v060](v0.6.0/education-small-v060.png)
+
+![v0.6.0 collection-settings-v060](v0.6.0/collection-settings-v060.png)
 
 </details>
 

@@ -256,6 +256,8 @@ class ExclusionDialog(QDialog):
             self.accept()
             self.window.navigate(0)
             self.window.clear_search_filters()
+            education = assess(item, self.window.store.profile())['education']
+            self.window.collection_tabs.setCurrentIndex(1 if education and self.window.store.profile()['separate_education'] else 0)
             self.window.show_excluded.setChecked(True)
             self.window.search.setText(str(item.get('title', ref)))
             self.window.select(ref)
@@ -534,6 +536,14 @@ class Window(QMainWindow):
         self.refresh_button = button('↻  지금 확인', self.refresh)
         search_row.addWidget(self.refresh_button)
         layout.addLayout(search_row)
+        self.collection_tabs = QTabBar()
+        self.collection_tabs.setDrawBase(False)
+        self.collection_tabs.setObjectName('collectionTabs')
+        self.collection_tabs.addTab('일반 대회')
+        self.collection_tabs.addTab('교육용')
+        self.collection_tabs.setAccessibleName('일반 대회와 교육용 구분')
+        self.collection_tabs.currentChanged.connect(self.reset_page)
+        layout.addWidget(self.collection_tabs, 0, Qt.AlignmentFlag.AlignLeft)
         chip_row = QHBoxLayout()
         self.quick_chips = []
         for text in ['추천', '전체', '정형 데이터', 'LLM · NLP']:
@@ -605,6 +615,9 @@ class Window(QMainWindow):
         more_menu.addAction(icon('bookmark'), '관심 등록 / 해제', self.star)
         more_menu.addAction(icon('layers'), '참가 조건 확인', self.load_pages)
         more_menu.addAction(icon('eye-off'), '숨기기 / 해제', self.hide_item)
+        more_menu.addSeparator()
+        more_menu.addAction('요약 보기', lambda: self.detail_tabs.setCurrentIndex(0))
+        more_menu.addAction('전체 정보 보기', lambda: self.detail_tabs.setCurrentIndex(1))
         self.more_button.setMenu(more_menu)
         self.more_button.hide()
         actions.addWidget(self.more_button)
@@ -641,6 +654,7 @@ class Window(QMainWindow):
             self.hide_button.setVisible(not compact)
             self.rules_button.setVisible(not compact)
             self.more_button.setVisible(compact)
+            self.detail_tabs.setVisible(not compact)
 
     def choose_chip(self, text):
         self.topic.setCurrentText({'정형 데이터': '정형 데이터 / SQL', 'LLM · NLP': 'LLM · NLP'}.get(text, '모든 분야'))
@@ -690,8 +704,12 @@ class Window(QMainWindow):
         profile = self.store.profile()
         self.profile_summary.setText(profile['name'])
         self.profile_pill.setText(f"{profile['gpu']} · {profile['vram']}GB")
+        separate = profile['separate_education']
+        self.collection_tabs.setVisible(separate)
+        education_view = separate and self.collection_tabs.currentIndex() == 1
         self.sync_chips()
-        self.hero_text.setText(('예시 데이터 화면 · ' if self.preview else '') + '관심 분야에 맞는 다음 도전을 찾아보세요.')
+        intro = '입문·연습용 대회를 따로 모았어요.' if education_view else '관심 분야에 맞는 다음 도전을 찾아보세요.'
+        self.hero_text.setText(('예시 데이터 화면 · ' if self.preview else '') + intro)
         self.hero_text.setToolTip(f"관심 분야 {len(profile['topics'])}개 · {profile['interval']}분마다 확인")
         rows = self.store.rows()
         excluded_count = sum(bool(exclusion_details(json.loads(r['body']), profile)) for r in rows if not r['hidden'])
@@ -718,6 +736,11 @@ class Window(QMainWindow):
             elif self.topic.currentIndex() and self.topic.currentText() not in verdict['topics']:
                 continue
             results.append(row)
+        education_count = sum(r['verdict']['education'] for r in results)
+        self.collection_tabs.setTabText(0, f'일반 대회 ({len(results) - education_count})')
+        self.collection_tabs.setTabText(1, f'교육용 ({education_count})')
+        if separate:
+            results = [r for r in results if r['verdict']['education'] == education_view]
         if self.sort.currentIndex() == 1:
             results.sort(key=lambda r: date(r['item'].get('deadline')) or now() + timedelta(days=99999))
         elif self.sort.currentIndex() == 2:
@@ -742,6 +765,10 @@ class Window(QMainWindow):
                 title, text, action, fn = '검색 결과가 없습니다', '검색어나 분야를 바꿔보세요.', '검색 조건 초기화', self.clear_search_filters
             elif self.mode == 1 and not any(r['starred'] for r in rows):
                 title, text, action, fn = '관심 대회를 담아보세요', '대회 상세에서 관심 버튼을 누르면 여기에 모입니다.', '대회 탐색', lambda: self.navigate(0)
+            elif separate and education_view and rows:
+                title, text, action, fn = '현재 조건의 교육용 대회가 없습니다', '교육용 분류와 검색·제외 조건을 설정에서 조절할 수 있어요.', '일반 대회 보기', lambda: self.collection_tabs.setCurrentIndex(0)
+            elif separate and education_count and rows:
+                title, text, action, fn = '교육용 대회를 확인해보세요', '현재 조건에 맞는 입문·연습용 대회가 별도 보기에 있습니다.', '교육용 보기', lambda: self.collection_tabs.setCurrentIndex(1)
             elif rows:
                 title, text, action, fn = '현재 조건에 맞는 대회가 없습니다', '참가 대상이나 추천 점수 조건을 조정해보세요.', '추천 조건 조정', lambda: self.navigate(3)
             elif self.credentials:
@@ -771,6 +798,10 @@ class Window(QMainWindow):
             top = QHBoxLayout()
             name = label(title, 'title', True)
             top.addWidget(name, 1)
+            if v['education']:
+                badge = label('교육용', 'chip')
+                badge.setToolTip(v['education_reason'])
+                top.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
             save = button('', lambda checked=False, ref=row['ref']: self.toggle_bookmark(ref), icon_name='bookmark-check' if row['starred'] else 'bookmark')
             save.setObjectName('iconButton')
             save.setFixedSize(36, 36)
@@ -790,7 +821,8 @@ class Window(QMainWindow):
             end = date(item.get('deadline'))
             meta.addWidget(label(end.astimezone(KST).strftime('%Y.%m.%d') if end else '마감 확인', 'muted'))
             if end:
-                meta.addWidget(label(deadline_badge(item.get('deadline')), 'chip'))
+                long_practice = v['education'] and end > now() + timedelta(days=365)
+                meta.addWidget(label('장기 운영' if long_practice else deadline_badge(item.get('deadline')), 'chip'))
             meta.addStretch()
             body.addLayout(meta)
             if row['exclusions']:
@@ -841,6 +873,8 @@ class Window(QMainWindow):
                  ('최대 팀 인원', item.get('maxTeamSize')), ('보상', item.get('reward')),
                  ('참여 팀', item.get('teamCount')), ('마지막 확인', display_date(row['last_seen']))]
         body = '<h2>' + esc(item.get('title')) + '</h2><p>' + esc(plain(item.get('description'))) + '</p>'
+        classification = '<h3>교육용 대회</h3><p>' + esc(v['education_reason']) + '</p>' if v['education'] else ''
+        body += classification
         body += '<h3>일정과 주요 정보</h3>' + ''.join(f'<p><b>{k}</b><br>{esc(value)}</p>' for k, value in pairs)
         body += '<h3>추천 이유</h3><p>' + '<br>'.join(esc(x) for x in v['reasons']) + '</p>'
         body += '<h3>내 환경에서 확인할 사항</h3><p>' + '<br><br>'.join(esc(v[k]) for k in ('eligibility', 'gpu', 'api')) + '</p>'
@@ -852,10 +886,12 @@ class Window(QMainWindow):
         body += '<p style="color:#6c7d90">설명·규칙이 변경될 수 있습니다. 확정되지 않은 조건은 확인 필요로 표시합니다.</p>'
         if self.detail_tabs.currentIndex() == 0:
             end = date(item.get('deadline'))
-            deadline_text = display_date(item.get('deadline')) + '  ' + deadline_badge(item.get('deadline'))
+            long_practice = v['education'] and end and end > now() + timedelta(days=365)
+            deadline_text = display_date(item.get('deadline')) + (' · API상 마감' if long_practice else '  ' + deadline_badge(item.get('deadline')))
             summary = '<h2 style="font-size:28px;">' + esc(item.get('title')) + '</h2><p style="font-size:17px;color:#627086;">' + esc(plain(item.get('description'))) + '</p>'
             summary += '<p style="color:#0084ae;font-weight:600">' + esc(' · '.join(v['topics']) or '분야 확인 필요') + '</p>'
-            summary += '<h3>제출 마감</h3><p>' + esc(deadline_text) + '</p>'
+            summary += classification
+            summary += ('<h3>장기 운영 일정</h3><p>' if long_practice else '<h3>제출 마감</h3><p>') + esc(deadline_text) + '</p>'
             summary += '<h3>추천 이유</h3><p>' + '<br>'.join(esc(x) for x in v['reasons']) + '</p>'
             summary += '<h3>참가 조건</h3><p>' + esc(v['eligibility']) + '</p>'
             if details:
@@ -1098,6 +1134,17 @@ class Window(QMainWindow):
         f.addLayout(page_row)
         f.addWidget(label('PC와 앱이 실행 중일 때 확인합니다.', 'muted'))
         box.addWidget(filters)
+        education_card, ec = card()
+        ec.addWidget(label('교육용 대회', 'title'))
+        self.separate_education = QCheckBox('일반 대회와 교육용을 나눠 보기')
+        self.education_playground = QCheckBox('Playground 대회도 교육용으로 분류')
+        self.notify_education = QCheckBox('교육용 새 대회도 알림 받기')
+        for key, chk in [('separate_education', self.separate_education), ('education_playground', self.education_playground), ('notify_education', self.notify_education)]:
+            chk.setChecked(p[key])
+            ec.addWidget(chk)
+        ec.addWidget(label('Getting Started 등 입문 카테고리를 기준으로 나눕니다. 마감이 멀다는 이유만으로 교육용으로 판단하지 않아요.', 'muted', True))
+        ec.addWidget(label('교육용도 계속 수집·보관하며 관심 등록이 가능합니다. 관심 대회의 변경·마감 알림은 기존 설정을 따릅니다.', 'muted', True))
+        box.addWidget(education_card)
         notification_card, nc = card()
         nc.addWidget(label('알림 종류와 시간', 'title'))
         nc.addWidget(self.notifications)
@@ -1135,7 +1182,7 @@ class Window(QMainWindow):
         self.settings_tabs = QTabWidget()
         self.settings_tab_scrolls = []
         groups = [('프로필·환경', [connection, hardware]), ('관심·참가', [interests, participation]),
-                  ('수집·보기', [filters]), ('알림', [notification_card])]
+                  ('수집·보기', [education_card, filters]), ('알림', [notification_card])]
         for title, panels in groups:
             tab_scroll = QScrollArea()
             tab_scroll.setWidgetResizable(True)
@@ -1172,7 +1219,8 @@ class Window(QMainWindow):
         for control in (self.vram_input, self.interval, self.threshold):
             control.valueChanged.connect(self.queue_settings_preview)
         for check in [*self.topic_checks.values(), *self.audience_checks.values(), self.unknown_audience,
-                      self.paid, self.offline, self.notifications, self.autostart]:
+                      self.paid, self.offline, self.notifications, self.autostart,
+                      self.separate_education, self.education_playground, self.notify_education]:
             check.toggled.connect(self.queue_settings_preview)
         self.page_size_input.currentIndexChanged.connect(self.queue_settings_preview)
         self.notify_schedule.currentIndexChanged.connect(self.update_notification_controls)
@@ -1206,9 +1254,13 @@ class Window(QMainWindow):
             self.settings_status.setText('입력값을 확인해 주세요.')
             return
         rows = [r for r in self.store.rows() if not r['hidden']]
-        candidates = sum(not (v := assess(json.loads(r['body']), p))['excluded'] and v['score'] >= p['min_score'] for r in rows)
+        verdicts = [assess(json.loads(r['body']), p) for r in rows]
+        candidates = sum(not v['excluded'] and v['score'] >= p['min_score'] for v in verdicts)
+        education_count = sum(v['education'] and not v['excluded'] and v['score'] >= p['min_score'] for v in verdicts)
         changed = p != self.store.profile() or self.autostart.isChecked() != self.autostart_enabled()
         self.settings_status.setText(('저장 전' if changed else '저장됨') + (f' · 현재 목록에서 추천 후보 {candidates}개' if rows else ' · 수집 후 추천 후보를 확인할 수 있습니다.'))
+        if rows and p['separate_education']:
+            self.settings_status.setText(self.settings_status.text() + f' (일반 {candidates - education_count} · 교육 {education_count})')
 
     def read_form(self):
         p = self.store.profile()
@@ -1220,6 +1272,9 @@ class Window(QMainWindow):
                  include_unknown_audience=self.unknown_audience.isChecked(),
                  exclude_students=not any(self.audience_checks[k].isChecked() for k in ('university', 'youth', 'student')),
                  exclude_offline=self.offline.isChecked(),
+                 separate_education=self.separate_education.isChecked(),
+                 education_playground=self.education_playground.isChecked(),
+                 notify_education=self.notify_education.isChecked(),
                  notify=self.notifications.isChecked(), interval=self.interval.value(),
                  notify_kinds=[k for k, chk in self.notify_kind_checks.items() if chk.isChecked()],
                  notify_schedule=self.notify_schedule.currentData(),
@@ -1313,6 +1368,9 @@ class Window(QMainWindow):
                 chk.setChecked(key in p['audiences'])
             self.unknown_audience.setChecked(p['include_unknown_audience'])
             self.offline.setChecked(p['exclude_offline'])
+            self.separate_education.setChecked(p['separate_education'])
+            self.education_playground.setChecked(p['education_playground'])
+            self.notify_education.setChecked(p['notify_education'])
             self.notifications.setChecked(p['notify'])
             for key, chk in self.notify_kind_checks.items():
                 chk.setChecked(key in p['notify_kinds'])

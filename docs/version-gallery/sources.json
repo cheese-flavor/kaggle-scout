@@ -82,5 +82,29 @@
     "source": "v0.4.0:docs/ux-v030/01-discovery.png",
     "image": "v0.4.0/discovery.png",
     "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.6.0",
+    "source": "v0.6.0:docs/dashboard-v060.png",
+    "image": "v0.6.0/dashboard-v060.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.6.0",
+    "source": "v0.6.0:docs/education-v060.png",
+    "image": "v0.6.0/education-v060.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.6.0",
+    "source": "v0.6.0:docs/education-small-v060.png",
+    "image": "v0.6.0/education-small-v060.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.6.0",
+    "source": "v0.6.0:docs/collection-settings-v060.png",
+    "image": "v0.6.0/collection-settings-v060.png",
+    "data": "illustrative fixtures"
   }
 ]

@@ -1,6 +1,7 @@
 import copy
 import tempfile
 import unittest
+from pathlib import Path
 from datetime import timedelta
 from core import DEFAULT, Store, assess, validate_profile, education_info
 from test_core import AT, item
@@ -8,6 +9,7 @@ from test_core import AT, item
 
 class EducationTests(unittest.TestCase):
     def setUp(self):
+        Path('work').mkdir(exist_ok=True)
         self.tmp = tempfile.TemporaryDirectory(dir='work')
         self.addCleanup(self.tmp.cleanup)
         self.store = Store(self.tmp.name)

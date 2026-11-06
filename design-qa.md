@@ -37,3 +37,11 @@ This is a faithful adaptation of the selected direction, not a pixel-identical r
 This does not establish full accessibility compliance, high-DPI behavior on another display, real-account permissions, or delivery of Windows notifications. Those remain separate verification items in `ROADMAP.md`.
 
 Packaged verification: clean PyInstaller build and installed v0.5.0 both render the native GUI and exit successfully with isolated preview data. The packaged empty state was visually inspected. Desktop shortcut and executable metadata point to 0.5.0; user DB existence and SHA256 remain unchanged after installation.
+
+## v0.6.0 · Educational competitions
+
+Actual fixture captures: `docs/dashboard-v060.png`, `docs/education-v060.png`, `docs/collection-settings-v060.png` (1180 × 820), and `docs/education-small-v060.png` (960 × 680). The app retains the selected v0.5.0 design, with a general/education switch below search. Existing screenshots remain unchanged in the version gallery.
+
+The first compact capture left too little detail space after adding the group switch. Summary/full-information controls now move into More below 760px height, preserving title/description and the primary action. The final compact capture and the normal education/settings captures were opened and checked; no overlapping controls were found in those views. Long practice deadlines retain the API date with a “장기 운영” label instead of a very large countdown.
+
+63 tests pass, including classification evidence, long-deadline false positives, legacy profile defaults, storage retention, notification opt-in and queued-alert checks, group/filter/pagination behavior, education bookmarking, exclusion navigation, imported settings and compact information access. High-DPI and full accessibility limitations above still apply.
