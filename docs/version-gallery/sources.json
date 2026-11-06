@@ -1,0 +1,80 @@
+[
+  {
+    "version": "v0.1.1",
+    "source": "v0.1.1:docs/dashboard.png",
+    "image": "v0.1.1/dashboard.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.1.1",
+    "source": "v0.1.1:docs/connection.png",
+    "image": "v0.1.1/connection.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.2.0",
+    "source": "v0.2.0:docs/dashboard.png",
+    "image": "v0.2.0/dashboard.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.2.0",
+    "source": "v0.2.0:docs/connection.png",
+    "image": "v0.2.0/connection.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.3.0",
+    "source": "v0.3.0:docs/ux-v030/01-discovery.png",
+    "image": "v0.3.0/01-discovery.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.3.0",
+    "source": "v0.3.0:docs/ux-v030/02-settings.png",
+    "image": "v0.3.0/02-settings.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.3.0",
+    "source": "v0.3.0:docs/ux-v030/03-empty.png",
+    "image": "v0.3.0/03-empty.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.4.0",
+    "source": "v0.4.0:docs/exclusion-reasons.png",
+    "image": "v0.4.0/exclusion-reasons.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.4.0",
+    "source": "v0.4.0:docs/notification-settings.png",
+    "image": "v0.4.0/notification-settings.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.5.0",
+    "source": "v0.5.0:docs/dashboard-v050.png",
+    "image": "v0.5.0/dashboard-v050.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.5.0",
+    "source": "v0.5.0:docs/settings-v050.png",
+    "image": "v0.5.0/settings-v050.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.5.0",
+    "source": "v0.5.0:docs/notifications-v050.png",
+    "image": "v0.5.0/notifications-v050.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.5.0",
+    "source": "v0.5.0:docs/dashboard-final-v050.png",
+    "image": "v0.5.0/dashboard-final-v050.png",
+    "data": "illustrative fixtures"
+  }
+]
