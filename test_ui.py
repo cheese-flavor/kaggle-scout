@@ -156,5 +156,18 @@ class UITests(unittest.TestCase):
         self.assertEqual(self.window.current_page_refs, ['example'])
         self.assertTrue(self.window.original_button.isEnabled())
 
+    def test_saved_custom_slider_values_survive_reopening(self):
+        self.window.vram_input.setValue(128)
+        self.window.interval.setValue(90)
+        self.window.save_settings()
+        reopened = Window(Store(self.tmp.name), preview=True)
+        try:
+            self.assertEqual(reopened.vram_input.value(), 128)
+            self.assertEqual(reopened.interval.value(), 90)
+        finally:
+            reopened.quitting = True
+            reopened.close()
+            reopened.deleteLater()
+
 if __name__ == '__main__':
     unittest.main()

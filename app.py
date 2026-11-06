@@ -33,6 +33,7 @@ QPushButton:pressed { background: #d3f0fc; }
 QPushButton:disabled { color: #9daab6; background: #edf2f7; }
 QPushButton#primary { background: #20beff; color: #10374b; border-color: #20beff; }
 QPushButton#primary:hover { background: #60d0ff; }
+QPushButton#primary:disabled { background: #edf2f7; color: #91a0af; border-color: #dbe5ee; }
 QPushButton#nav { text-align: left; border: none; background: transparent; padding: 13px 16px; color: #63758a; }
 QPushButton#nav:checked { background: #e8f8ff; color: #027eab; }
 QLineEdit, QComboBox, QSpinBox { background: #ffffff; border: 1px solid #d9e4ee; border-radius: 8px; padding: 10px; min-height: 18px; }
@@ -606,6 +607,8 @@ class Window(QMainWindow):
         for b in (self.star_button, self.hide_button, self.rules_button, self.original_button):
             b.setEnabled(row is not None)
         if not row:
+            self.star_button.setText('☆ 관심')
+            self.hide_button.setText('숨기기')
             self.detail.setHtml('<h2>대회 상세 정보</h2><p>대회를 선택하면 일정과 추천 이유를 확인할 수 있습니다.</p>')
             return
         self.star_button.setText('★ 관심 해제' if row['starred'] else '☆ 관심')
