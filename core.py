@@ -129,6 +129,12 @@ def display_date(value):
     d = date(value)
     return d.astimezone(KST).strftime('%Y-%m-%d %H:%M KST') if d else '확인 필요'
 
+
+def trash_cutoff(item):
+    """Recover through the day before the submission deadline, in KST."""
+    end = date(item.get('deadline'))
+    return end.astimezone(KST).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC) if end else None
+
 def plain(value):
     import html
     return html.unescape(re.sub('<[^>]+>', ' ', str(value or '')))
@@ -287,11 +293,17 @@ class Store:
             CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, created TEXT, kind TEXT,
               ref TEXT, message TEXT);
             CREATE TABLE IF NOT EXISTS reminders(key TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS discarded_items(ref TEXT PRIMARY KEY, purged_at TEXT NOT NULL);
             ''')
             columns = {r['name'] for r in con.execute('PRAGMA table_info(events)')}
             for name, definition in [('delivery', "TEXT NOT NULL DEFAULT 'legacy'"), ('context', "TEXT NOT NULL DEFAULT '{}' ")]:
                 if name not in columns:
                     con.execute(f'ALTER TABLE events ADD COLUMN {name} {definition}')
+            columns = {r['name'] for r in con.execute('PRAGMA table_info(items)')}
+            for name in ('trashed_at', 'trash_until'):
+                if name not in columns:
+                    con.execute(f'ALTER TABLE items ADD COLUMN {name} TEXT')
+        self.cleanup_trash()
 
     @contextmanager
     def connect(self):
@@ -337,9 +349,45 @@ class Store:
             con.execute('PRAGMA secure_delete=ON')
             con.execute("DELETE FROM meta WHERE key='credentials'")
 
-    def rows(self):
+    def rows(self, include_deleted=False):
         with self.connect() as con:
-            return [dict(r) for r in con.execute('SELECT * FROM items')]
+            query = 'SELECT * FROM items' + ('' if include_deleted else ' WHERE trashed_at IS NULL')
+            return [dict(r) for r in con.execute(query)]
+
+    def cleanup_trash(self, at=None):
+        stamp = (at or now()).astimezone(UTC).isoformat()
+        with self.connect() as con:
+            refs = [r['ref'] for r in con.execute('SELECT ref FROM items WHERE trashed_at IS NOT NULL AND trash_until IS NOT NULL AND trash_until<=?', (stamp,))]
+            for ref in refs:
+                con.execute('INSERT OR IGNORE INTO discarded_items VALUES(?,?)', (ref, stamp))
+                con.execute("UPDATE events SET delivery='skipped' WHERE ref=? AND delivery='pending'", (ref,))
+                con.execute('DELETE FROM items WHERE ref=?', (ref,))
+        return len(refs)
+
+    def trash_rows(self, at=None):
+        self.cleanup_trash(at)
+        with self.connect() as con:
+            return [dict(r) for r in con.execute('SELECT * FROM items WHERE trashed_at IS NOT NULL ORDER BY trashed_at DESC')]
+
+    def trash(self, ref, at=None):
+        at = at or now()
+        with self.connect() as con:
+            row = con.execute('SELECT * FROM items WHERE ref=? AND trashed_at IS NULL', (ref,)).fetchone()
+            if row is None:
+                return False
+            until = trash_cutoff(json.loads(row['body']))
+            con.execute('UPDATE items SET trashed_at=?,trash_until=? WHERE ref=?',
+                        (at.astimezone(UTC).isoformat(), until.isoformat() if until else None, ref))
+            con.execute("UPDATE events SET delivery='skipped' WHERE ref=? AND delivery='pending'", (ref,))
+        self.cleanup_trash(at)
+        return True
+
+    def restore(self, ref, at=None):
+        at = at or now()
+        self.cleanup_trash(at)
+        with self.connect() as con:
+            changed = con.execute('UPDATE items SET trashed_at=NULL,trash_until=NULL,hidden=0 WHERE ref=? AND trashed_at IS NOT NULL AND (trash_until IS NULL OR trash_until>?)', (ref, at.astimezone(UTC).isoformat())).rowcount
+        return bool(changed)
 
     def flag(self, ref, column, value):
         if column not in ('starred', 'hidden'):
@@ -355,6 +403,8 @@ class Store:
         with self.connect() as con:
             for item in items:
                 ref = slug(item)
+                if con.execute('SELECT 1 FROM discarded_items WHERE ref=?', (ref,)).fetchone():
+                    continue
                 old = con.execute('SELECT * FROM items WHERE ref=?', (ref,)).fetchone()
                 digest = fingerprint(item)
                 con.execute('''INSERT INTO items(ref,body,hash,first_seen,last_seen) VALUES(?,?,?,?,?)
@@ -365,14 +415,16 @@ class Store:
                 kind = None
                 if not first and old is None and eligible and allow_new_recommendation(item, profile):
                     kind = '새 추천'
-                elif old and old['hash'] != digest and old['starred'] and not old['hidden']:
+                elif old and old['hash'] != digest and old['starred'] and not old['hidden'] and not old['trashed_at']:
                     kind = '정보 변경'
-                if kind and not (old and old['hidden']):
+                until = trash_cutoff(item)
+                con.execute('UPDATE items SET trash_until=? WHERE ref=? AND trashed_at IS NOT NULL', (until.isoformat() if until else None, ref))
+                if kind and not (old and (old['hidden'] or old['trashed_at'])):
                     msg = item.get('title', ref)
                     notices.append((kind, msg, ref))
                     con.execute("INSERT INTO events(created,kind,ref,message,delivery) VALUES(?,?,?,?,'pending')", (stamp, kind, ref, msg))
             # Interest reminders also run over cached records and recover after sleep.
-            for row in con.execute('SELECT * FROM items WHERE starred=1 AND hidden=0').fetchall():
+            for row in con.execute('SELECT * FROM items WHERE starred=1 AND hidden=0 AND trashed_at IS NULL').fetchall():
                 item = json.loads(row['body'])
                 for field, label in [('newEntrantDeadline', '참가'), ('mergerDeadline', '팀 구성'), ('deadline', '제출')]:
                     end = date(item.get(field))
@@ -387,6 +439,7 @@ class Store:
                         msg = f"{item.get('title', row['ref'])} · {label} 마감 {display_date(end.isoformat())}"
                         notices.append(('마감 임박', msg, row['ref']))
                         con.execute("INSERT INTO events(created,kind,ref,message,delivery,context) VALUES(?,?,?,?,'pending',?)", (stamp, '마감 임박', row['ref'], msg, json.dumps({'field': field, 'deadline': end.isoformat()})))
+        self.cleanup_trash(at)
         self.set('initialized', True)
         return first, notices
 
@@ -397,7 +450,7 @@ class Store:
             for event in con.execute("SELECT * FROM events WHERE delivery='pending' ORDER BY id").fetchall():
                 skip = not profile['notify'] or event['kind'] not in profile['notify_kinds']
                 row = con.execute('SELECT * FROM items WHERE ref=?', (event['ref'],)).fetchone()
-                skip = skip or row is None or bool(row['hidden'])
+                skip = skip or row is None or bool(row['hidden']) or bool(row['trashed_at'])
                 if row:
                     item = json.loads(row['body'])
                     if event['kind'] == '새 추천':
