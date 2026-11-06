@@ -1,10 +1,12 @@
 import unittest
 from core import DEFAULT, exclusion_details
 from app import ExclusionDialog
-from test_ui import UITests
+import test_ui as ui
 from test_core import item
 
-class ExclusionTests(UITests):
+class ExclusionTests(unittest.TestCase):
+    setUp = ui.UITests.setUp
+    tearDown = ui.UITests.tearDown
     def test_reason_dialog_covers_score_and_multiple_rules(self):
         p = {**self.store.profile(), 'min_score': 90}
         self.store.set('profile', p)
@@ -17,7 +19,7 @@ class ExclusionTests(UITests):
             self.assertEqual(dialog.items.count(), 1)
             codes = {d['code'] for d in dialog.entries[0][2]}
             self.assertTrue({'audience', 'gpu', 'score'} <= codes)
-            self.assertIn('24', dialog.explanation.text())
+            self.assertIn('24', dialog.explanation.toPlainText())
             dialog.view()
             self.assertIn('large', self.window.current_page_refs)
             self.assertIn('최소 90점', self.window.detail.toPlainText())

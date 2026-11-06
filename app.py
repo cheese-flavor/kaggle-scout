@@ -5,15 +5,15 @@ import os
 from pathlib import Path
 import sys
 from datetime import timedelta
-from PySide6.QtCore import Qt, QThread, Signal, QTimer, QLockFile, QUrl
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QLockFile, QUrl, QTime
 from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
     QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
-    QFileDialog, QSystemTrayIcon, QMenu, QSplitter, QSlider, QListWidget, QListWidgetItem)
+    QFileDialog, QSystemTrayIcon, QMenu, QSplitter, QSlider, QListWidget, QListWidgetItem, QTimeEdit)
 from core import Store, Kaggle, DEFAULT, TOPICS, AUDIENCES, validate_profile, read_json_file, validate_credentials, assess, now, date, display_date, plain, slug
 from installation import data_directory, migrate_database
-from core import exclusion_details, EXCLUSION_LABELS
+from core import exclusion_details, EXCLUSION_LABELS, NOTIFY_KINDS
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
@@ -188,7 +188,9 @@ class ExclusionDialog(QDialog):
         self.items = QListWidget()
         self.items.setWordWrap(True)
         box.addWidget(self.items, 1)
-        self.explanation = label('', 'muted', True)
+        self.explanation = SafeTextBrowser()
+        self.explanation.setMinimumHeight(90)
+        self.explanation.setMaximumHeight(150)
         box.addWidget(self.explanation)
         actions = QHBoxLayout()
         actions.addWidget(button('설정 조정', self.adjust))
@@ -211,13 +213,13 @@ class ExclusionDialog(QDialog):
         if self.items.count():
             self.items.setCurrentRow(0)
         else:
-            self.explanation.setText('현재 조건으로 제외된 대회가 없습니다.')
+            self.explanation.setPlainText('현재 조건으로 제외된 대회가 없습니다.')
         self.view_button.setEnabled(self.items.count() > 0)
 
     def describe(self, current, previous=None):
         if current:
             _, _, details = current.data(Qt.ItemDataRole.UserRole)
-            self.explanation.setText('\n\n'.join(d['detail'] for d in details))
+            self.explanation.setPlainText('\n\n'.join(d['detail'] for d in details))
 
     def adjust(self):
         self.accept()
@@ -779,18 +781,7 @@ class Window(QMainWindow):
         self.status.setText(f"최근 확인 {display_date(self.store.get('last_success'))} · {count}개")
         self.status.setToolTip('다음 확인: ' + display_date(self.next_due.isoformat()))
         self.render()
-        if first:
-            self.notify('첫 수집 완료', f'{count}개 대회를 확인했습니다. 추천 목록에서 관심 대회를 선택하세요.')
-        elif notices:
-            kind, title, ref = notices[0]
-            self.notice_ref = ref
-            row = next((r for r in self.store.rows() if r['ref'] == ref), None)
-            extra = ''
-            if row:
-                item = json.loads(row['body'])
-                verdict = assess(item, self.store.profile())
-                extra = '\n제출 ' + display_date(item.get('deadline')) + '\n' + ' / '.join(verdict['reasons'][:2])
-            self.notify(f'{kind} · {len(notices)}건', title + extra + ('\n전체 정보는 알림 기록에서 확인하세요.' if len(notices) > 1 else ''))
+        self.flush_notifications()
 
     def failed(self, text):
         self.refresh_button.setEnabled(True)
@@ -801,8 +792,26 @@ class Window(QMainWindow):
     def notify(self, title, text):
         if self.store.profile()['notify'] and self.tray.isVisible():
             self.tray.showMessage('Kaggle Scout · ' + title, text[:240], QSystemTrayIcon.MessageIcon.Information, 10000)
+            return True
+        return False
+
+    def flush_notifications(self):
+        if self.preview or not self.tray.isVisible():
+            return
+        batch = self.store.notification_batch(self.store.profile())
+        if not batch:
+            return
+        counts = {kind: sum(e['kind'] == kind for e in batch) for kind in NOTIFY_KINDS}
+        title = ' · '.join(f'{NOTIFY_KINDS[k]} {n}건' for k, n in counts.items() if n)
+        self.notice_ref = batch[0]['ref']
+        text = batch[0]['message']
+        if len(batch) > 1:
+            text += f'\n외 {len(batch)-1}건 · 전체 내용은 알림 기록에서 확인하세요.'
+        if self.notify(title, text):
+            self.store.mark_notified([e['id'] for e in batch])
 
     def tick(self):
+        self.flush_notifications()
         if self.credentials and not self.await_profile and not self.preview and now() >= self.next_due:
             self.refresh()
 
@@ -842,7 +851,8 @@ class Window(QMainWindow):
     def render_events(self):
         with self.store.connect() as con:
             rows = con.execute('SELECT * FROM events ORDER BY id DESC LIMIT 300').fetchall()
-        self.events.setHtml(''.join('<h3>' + html.escape(r['kind']) + '</h3><p>' + html.escape(r['message']) + '</p><p style="color:#6c7d90">' + display_date(r['created']) + '</p><hr>' for r in rows) or '<h3>아직 알림이 없습니다.</h3><p>첫 수집은 목록으로 보여주고, 이후 새 추천과 관심 대회 변경 사항을 기록합니다.</p>')
+        states = {'pending': '시간대·표시 대기', 'sent': 'PC 알림 표시 요청됨', 'skipped': '설정 또는 현재 상태로 PC 알림 생략', 'legacy': '이전 기록'}
+        self.events.setHtml(''.join('<h3>' + html.escape(r['kind']) + '</h3><p>' + html.escape(r['message']) + '</p><p style="color:#6c7d90">' + display_date(r['created']) + ' · ' + states.get(r['delivery'], '기록됨') + '</p><hr>' for r in rows) or '<h3>아직 알림이 없습니다.</h3><p>첫 수집은 목록으로 보여주고, 이후 새 추천과 관심 대회 변경 사항을 기록합니다.</p>')
 
     def build_settings(self):
         scroll = QScrollArea()
@@ -912,11 +922,11 @@ class Window(QMainWindow):
         f.addWidget(label('제외 조건과 알림', 'title'))
         self.offline = QCheckBox('오프라인 참석 필수 문구가 감지된 대회 제외')
         self.offline.setChecked(p['exclude_offline'])
-        self.notifications = QCheckBox('PC 알림 받기 (관심 대회 마감 알림 포함)')
+        self.notifications = QCheckBox('PC 알림 받기')
         self.notifications.setChecked(p['notify'])
         self.autostart = QCheckBox('Windows 로그인 시 트레이로 자동 시작')
         self.autostart.setChecked(self.autostart_enabled())
-        for chk in [self.offline, self.notifications, self.autostart]:
+        for chk in [self.offline, self.autostart]:
             f.addWidget(chk)
         self.keywords = QLineEdit(', '.join(p['exclude_keywords']))
         self.keywords.setPlaceholderText('추가 제외 키워드, 쉼표로 구분')
@@ -942,6 +952,33 @@ class Window(QMainWindow):
         f.addLayout(page_row)
         f.addWidget(label('PC와 앱이 실행 중일 때 확인합니다.', 'muted'))
         box.addWidget(filters)
+        notification_card, nc = card()
+        nc.addWidget(label('알림 종류와 시간', 'title'))
+        nc.addWidget(self.notifications)
+        self.notify_kind_checks = {}
+        for kind, text in NOTIFY_KINDS.items():
+            chk = QCheckBox(text)
+            chk.setChecked(kind in p['notify_kinds'])
+            self.notify_kind_checks[kind] = chk
+            nc.addWidget(chk)
+        schedule_row = QHBoxLayout()
+        self.notify_schedule = QComboBox()
+        self.notify_schedule.addItem('언제든 받기', 'always')
+        self.notify_schedule.addItem('지정 시간에만 받기', 'window')
+        self.notify_schedule.setCurrentIndex(self.notify_schedule.findData(p['notify_schedule']))
+        schedule_row.addWidget(self.notify_schedule)
+        self.notify_start = QTimeEdit(QTime.fromString(p['notify_start'], 'HH:mm'))
+        self.notify_end = QTimeEdit(QTime.fromString(p['notify_end'], 'HH:mm'))
+        for widget, name in [(self.notify_start, '알림 시작 시간'), (self.notify_end, '알림 종료 시간')]:
+            widget.setDisplayFormat('HH:mm')
+            widget.setAccessibleName(name + ' KST')
+        schedule_row.addWidget(self.notify_start)
+        schedule_row.addWidget(label('~'))
+        schedule_row.addWidget(self.notify_end)
+        schedule_row.addWidget(label('KST', 'muted'))
+        nc.addLayout(schedule_row)
+        nc.addWidget(label('시간 밖에서는 보관하고, 다음 허용 시간에 묶어 보여줍니다. 앱이 실행 중이어야 합니다. 꺼둔 종류는 기록만 남깁니다.', 'muted', True))
+        box.addWidget(notification_card)
         scroll.setWidget(page)
         container = QWidget()
         outer = QVBoxLayout(container)
@@ -970,6 +1007,23 @@ class Window(QMainWindow):
                       self.paid, self.offline, self.notifications, self.autostart]:
             check.toggled.connect(self.queue_settings_preview)
         self.page_size_input.currentIndexChanged.connect(self.queue_settings_preview)
+        self.notify_schedule.currentIndexChanged.connect(self.update_notification_controls)
+        self.notifications.toggled.connect(self.update_notification_controls)
+        for chk in self.notify_kind_checks.values():
+            chk.toggled.connect(self.queue_settings_preview)
+        self.notify_start.timeChanged.connect(self.queue_settings_preview)
+        self.notify_end.timeChanged.connect(self.queue_settings_preview)
+        self.update_notification_controls()
+
+    def update_notification_controls(self, *_):
+        enabled = self.notifications.isChecked()
+        self.notify_schedule.setEnabled(enabled)
+        for chk in self.notify_kind_checks.values():
+            chk.setEnabled(enabled)
+        window = enabled and self.notify_schedule.currentData() == 'window'
+        self.notify_start.setEnabled(window)
+        self.notify_end.setEnabled(window)
+        self.queue_settings_preview()
 
     def queue_settings_preview(self, *_):
         self.settings_preview_timer.start(150)
@@ -996,6 +1050,10 @@ class Window(QMainWindow):
                  exclude_students=not any(self.audience_checks[k].isChecked() for k in ('university', 'youth', 'student')),
                  exclude_offline=self.offline.isChecked(),
                  notify=self.notifications.isChecked(), interval=self.interval.value(),
+                 notify_kinds=[k for k, chk in self.notify_kind_checks.items() if chk.isChecked()],
+                 notify_schedule=self.notify_schedule.currentData(),
+                 notify_start=self.notify_start.time().toString('HH:mm'),
+                 notify_end=self.notify_end.time().toString('HH:mm'),
                  min_score=self.threshold.value(),
                  page_size=self.page_size_input.currentData(),
                  exclude_keywords=[k.strip() for k in self.keywords.text().split(',') if k.strip()])
@@ -1028,7 +1086,7 @@ class Window(QMainWindow):
         try:
             p = self.read_form()
         except ValueError:
-            self.settings_status.setText('입력값을 확인하세요. 제외 키워드는 50개 이하, 각 80자 이하입니다.')
+            self.settings_status.setText('입력값을 확인하세요. 알림 시작/종료는 달라야 하며 제외 키워드는 50개 이하, 각 80자 이하입니다.')
             return
         start_first_collection = self.await_profile and self.credentials is not None
         self.settings_preview_timer.stop()
@@ -1055,6 +1113,7 @@ class Window(QMainWindow):
                 return
         self.settings_status.setText('설정을 저장했습니다. 추천 목록에 적용되었습니다.')
         self.render()
+        self.flush_notifications()
         if start_first_collection:
             self.navigate(0)
             self.refresh()
@@ -1084,6 +1143,12 @@ class Window(QMainWindow):
             self.unknown_audience.setChecked(p['include_unknown_audience'])
             self.offline.setChecked(p['exclude_offline'])
             self.notifications.setChecked(p['notify'])
+            for key, chk in self.notify_kind_checks.items():
+                chk.setChecked(key in p['notify_kinds'])
+            self.notify_schedule.setCurrentIndex(self.notify_schedule.findData(p['notify_schedule']))
+            self.notify_start.setTime(QTime.fromString(p['notify_start'], 'HH:mm'))
+            self.notify_end.setTime(QTime.fromString(p['notify_end'], 'HH:mm'))
+            self.update_notification_controls()
             self.interval.setValue(p['interval'])
             self.threshold.setValue(p['min_score'])
             self.page_size_input.setCurrentIndex(self.page_size_input.findData(p['page_size']))

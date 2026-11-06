@@ -15,6 +15,7 @@ import requests
 
 UTC = timezone.utc
 KST = timezone(timedelta(hours=9))
+NOTIFY_KINDS = {'새 추천': '새 대회', '정보 변경': '정보 변경', '마감 임박': '마감 임박'}
 AUDIENCES = {'general': '일반인 / 공개 참가', 'university': '대학생·대학원생',
              'youth': '청소년·초중고', 'student': '학생 (세부 구분 미공개)'}
 TOPICS = {
@@ -31,7 +32,9 @@ DEFAULT = {'name': '나의 프로필', 'topics': list(TOPICS), 'skills': 'Python
            'exclude_students': True, 'exclude_offline': True,
            'exclude_keywords': [], 'interval': 60, 'notify': True,
            'purposes': ['학습', '포트폴리오', '취업', '수상'], 'min_score': 0,
-           'page_size': 10, 'audiences': ['general'], 'include_unknown_audience': True}
+           'page_size': 10, 'audiences': ['general'], 'include_unknown_audience': True,
+           'notify_kinds': list(NOTIFY_KINDS), 'notify_schedule': 'always',
+           'notify_start': '09:00', 'notify_end': '22:00'}
 
 def migrate_profile(value):
     value = dict(value)
@@ -50,6 +53,15 @@ def validate_profile(value):
         raise ValueError('프로필 범위 오류')
     if profile['page_size'] not in (5, 10, 20, 50):
         raise ValueError('페이지 크기 오류')
+    if profile['notify_schedule'] not in ('always', 'window'):
+        raise ValueError('알림 시간 설정을 확인하세요.')
+    for key in ('notify_start', 'notify_end'):
+        if not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', profile[key]):
+            raise ValueError('알림 시간은 HH:MM 형식이어야 합니다.')
+    if profile['notify_schedule'] == 'window' and profile['notify_start'] == profile['notify_end']:
+        raise ValueError('알림 시작과 종료 시간을 다르게 선택하세요.')
+    if len(profile['notify_kinds']) > len(NOTIFY_KINDS) or not all(isinstance(k, str) and k in NOTIFY_KINDS for k in profile['notify_kinds']):
+        raise ValueError('알림 종류를 확인하세요.')
     for key, allowed in [('topics', TOPICS), ('audiences', AUDIENCES)]:
         if not all(isinstance(x, str) and x in allowed for x in profile[key]) or len(profile[key]) > len(allowed):
             raise ValueError('프로필 선택값 오류')
@@ -213,6 +225,13 @@ def exclusion_details(item, profile, verdict=None):
                         'detail': f"탐색 점수 {verdict['score']}점 < 설정한 최소 {profile['min_score']}점"})
     return details
 
+def notification_window_open(profile, at=None):
+    if profile['notify_schedule'] == 'always':
+        return True
+    current = (at or now()).astimezone(KST).strftime('%H:%M')
+    start, end = profile['notify_start'], profile['notify_end']
+    return start <= current < end if start < end else current >= start or current < end
+
 class Blob(ctypes.Structure):
     _fields_ = [('size', ctypes.c_uint32), ('data', ctypes.POINTER(ctypes.c_ubyte))]
 
@@ -246,6 +265,10 @@ class Store:
               ref TEXT, message TEXT);
             CREATE TABLE IF NOT EXISTS reminders(key TEXT PRIMARY KEY);
             ''')
+            columns = {r['name'] for r in con.execute('PRAGMA table_info(events)')}
+            for name, definition in [('delivery', "TEXT NOT NULL DEFAULT 'legacy'"), ('context', "TEXT NOT NULL DEFAULT '{}' ")]:
+                if name not in columns:
+                    con.execute(f'ALTER TABLE events ADD COLUMN {name} {definition}')
 
     @contextmanager
     def connect(self):
@@ -324,7 +347,7 @@ class Store:
                 if kind and not (old and old['hidden']):
                     msg = item.get('title', ref)
                     notices.append((kind, msg, ref))
-                    con.execute('INSERT INTO events(created,kind,ref,message) VALUES(?,?,?,?)', (stamp, kind, ref, msg))
+                    con.execute("INSERT INTO events(created,kind,ref,message,delivery) VALUES(?,?,?,?,'pending')", (stamp, kind, ref, msg))
             # Interest reminders also run over cached records and recover after sleep.
             for row in con.execute('SELECT * FROM items WHERE starred=1 AND hidden=0').fetchall():
                 item = json.loads(row['body'])
@@ -340,9 +363,37 @@ class Store:
                     if con.execute('INSERT OR IGNORE INTO reminders VALUES(?)', (key,)).rowcount:
                         msg = f"{item.get('title', row['ref'])} · {label} 마감 {display_date(end.isoformat())}"
                         notices.append(('마감 임박', msg, row['ref']))
-                        con.execute('INSERT INTO events(created,kind,ref,message) VALUES(?,?,?,?)', (stamp, '마감 임박', row['ref'], msg))
+                        con.execute("INSERT INTO events(created,kind,ref,message,delivery,context) VALUES(?,?,?,?,'pending',?)", (stamp, '마감 임박', row['ref'], msg, json.dumps({'field': field, 'deadline': end.isoformat()})))
         self.set('initialized', True)
         return first, notices
+
+    def notification_batch(self, profile, at=None):
+        at = at or now()
+        ready = []
+        with self.connect() as con:
+            for event in con.execute("SELECT * FROM events WHERE delivery='pending' ORDER BY id").fetchall():
+                skip = not profile['notify'] or event['kind'] not in profile['notify_kinds']
+                row = con.execute('SELECT * FROM items WHERE ref=?', (event['ref'],)).fetchone()
+                skip = skip or row is None or bool(row['hidden'])
+                if row:
+                    item = json.loads(row['body'])
+                    if event['kind'] == '새 추천':
+                        skip = skip or bool(exclusion_details(item, profile, assess(item, profile, at)))
+                    elif event['kind'] in ('마감 임박', '정보 변경'):
+                        skip = skip or not row['starred']
+                    if event['kind'] == '마감 임박':
+                        context = json.loads(event['context'])
+                        end = date(context.get('deadline'))
+                        skip = skip or not end or end <= at or date(item.get(context.get('field', ''))) != end
+                if skip:
+                    con.execute("UPDATE events SET delivery='skipped' WHERE id=?", (event['id'],))
+                elif notification_window_open(profile, at):
+                    ready.append(dict(event))
+        return ready
+
+    def mark_notified(self, ids):
+        with self.connect() as con:
+            con.executemany("UPDATE events SET delivery='sent' WHERE id=? AND delivery='pending'", [(i,) for i in ids])
 
 class Kaggle:
     BASE = 'https://api.kaggle.com/v1/competitions.CompetitionApiService/'
