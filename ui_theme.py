@@ -8,6 +8,36 @@ from PySide6.QtSvg import QSvgRenderer
 
 ASSETS = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'assets'
 
+# Shared semantic colors: dark ink on a restrained, pale surface.
+TONES = {
+    'blue': {'ink': '#2558a4', 'surface': '#e9f1ff', 'border': '#b6cbed'},
+    'violet': {'ink': '#7043a5', 'surface': '#f1eafb', 'border': '#ceb9e7'},
+    'indigo': {'ink': '#524ba4', 'surface': '#eeedfb', 'border': '#c5c1e6'},
+    'teal': {'ink': '#176d5e', 'surface': '#e5f3ed', 'border': '#abd3c3'},
+    'amber': {'ink': '#865400', 'surface': '#fff2d5', 'border': '#e8ce8f'},
+    'rose': {'ink': '#a43d61', 'surface': '#fbeaf0', 'border': '#e5b5c6'},
+    'danger': {'ink': '#ad3646', 'surface': '#fcebed', 'border': '#e4b4ba'},
+    'slate': {'ink': '#506078', 'surface': '#edf1f6', 'border': '#cbd4e1'},
+}
+TOPIC_TONES = {
+    '정형 데이터 / SQL': ('blue', 'chart-no-axes-column-increasing'),
+    '시계열': ('teal', 'trending-up'),
+    'NLP': ('violet', 'message-circle'),
+    'LLM / 생성형 AI': ('indigo', 'layers'),
+    '이미지 / 영상': ('rose', 'layers'),
+    '음성': ('amber', 'audio-lines'),
+    'AI 서비스 / 웹 개발': ('teal', 'monitor'),
+}
+NAV_TONES = ('blue', 'violet', 'amber', 'slate')
+
+
+def set_tone(widget, tone):
+    if widget.property('tone') != tone:
+        widget.setProperty('tone', tone)
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
+        widget.update()
+
 @lru_cache(maxsize=128)
 def icon(name, color='#68758b', size=22):
     source = (ASSETS/'icons'/(name+'.svg')).read_text(encoding='utf8')
@@ -39,12 +69,14 @@ QLabel#chip {background:#e6f8ff; color:#027ca4; border-radius:12px; padding:5px 
 QLabel#cardDescription {color:#556981; font-size:17px;}
 QLabel#cardDate {color:#48617c; font-size:17px; font-weight:500;}
 QLabel#deadline {background:#def5ff; color:#007da9; border-radius:14px; padding:7px 12px; font-size:18px; font-weight:700;}
-QLabel#profilePill {font-size:16px;background:#ffffff; border:1px solid #e1e7ef; border-radius:19px; padding:10px 16px; font-weight:600;}
+QLabel#profilePill {font-size:16px;background:#edf1f7; border:1px solid #dce3ed; border-radius:19px; padding:10px 16px; font-weight:600;}
 QFrame#card {background:#ffffff; border:1px solid #e3e9f1; border-radius:20px;}
 QFrame#hero {background:#eaf9ff; border:1px solid #bfeafa; border-radius:20px;}
 QFrame#competitionCard {background:transparent; border:1px solid transparent; border-bottom:1px solid #e6ebf3; border-radius:0px;}
 QFrame#competitionCard:hover {background:#f0f7fc; border-radius:20px;}
-QFrame#competitionCard[selected="true"] {background:#edfaff; border:1px solid #15b8f3; border-radius:20px;}
+QFrame#competitionCard[selected="true"] {background:#f0f5ff; border:1px solid #91aede; border-radius:20px;}
+QFrame#competitionCard[context="bookmark"][selected="true"] {background:#f5f0fc; border-color:#b599d4;}
+QFrame#competitionCard[context="education"][selected="true"] {background:#eef8f3; border-color:#96bfb2;}
 QFrame#competitionCard:focus {border:2px solid #178ab4; border-radius:20px;}
 QPushButton {background:#ffffff; border:1px solid #e0e6ef; border-radius:14px; padding:10px 15px; font-weight:500;}
 QPushButton:hover {background:#eff8fd; border-color:#9edcf2;}
@@ -96,3 +128,28 @@ QListWidget::item {padding:12px; border-radius:10px;}
 QListWidget::item:selected {background:#e6f8ff; color:#12627e;}
 QMenu {background:#ffffff; border:1px solid #e3eaf2; border-radius:14px; padding:10px;}
 '''.replace('DOWN', asset('chevron-down')).replace('UP', asset('chevron-up')).replace('CHECK', asset('check'))
+
+# Specific selectors keep interactive states consistent with the same semantic ink.
+for tone, colors in TONES.items():
+    ink, surface, border = (colors[k] for k in ('ink', 'surface', 'border'))
+    STYLE += f'''
+QLabel#deadline[tone="{tone}"],QLabel#chip[tone="{tone}"] {{color:{ink};background:{surface};}}
+QPushButton[tone="{tone}"] {{color:{ink};border-color:{border};}}
+QPushButton[tone="{tone}"]:hover {{background:{surface};border-color:{ink};}}
+QPushButton[tone="{tone}"]:pressed {{background:{surface};}}
+QPushButton[tone="{tone}"]:disabled {{color:#a0adbc;background:#f0f3f7;border-color:#e6ebf2;}}
+QPushButton#primary[tone="{tone}"] {{color:white;background:{ink};border-color:{ink};}}
+QPushButton#primary[tone="{tone}"]:disabled {{color:#a0adbc;background:#edf1f6;border-color:#e5eaf1;}}
+QPushButton#chipButton[tone="{tone}"]:checked {{color:{ink};background:{surface};border-color:{border};}}
+QToolButton#nav[tone="{tone}"]:checked {{color:{ink};background:{surface};}}
+QTabBar#collectionTabs[tone="{tone}"]::tab:selected,QTabBar#settingsTabs[tone="{tone}"]::tab:selected {{color:{ink};background:{surface};}}
+QCheckBox#choice[tone="{tone}"]:checked {{color:{ink};background:{surface};border-color:{border};}}
+QCheckBox[tone="{tone}"]::indicator:checked {{background:{surface};border-color:{ink};image:url("{asset('check')}");}}
+'''
+STYLE += '''
+QTabBar::tab:selected {background:#e9f1ff;color:#2558a4;}
+QPushButton#chipButton:checked {background:#e9f1ff;border-color:#b6cbed;color:#2558a4;}
+QMenu#trayMenu {font-size:13px;padding:4px;border-radius:8px;}
+QMenu#trayMenu::item {padding:6px 14px;border-radius:5px;}
+QMenu#trayMenu::item:selected {background:#e9f1ff;color:#2558a4;}
+'''

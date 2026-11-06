@@ -17,7 +17,7 @@ from core import exclusion_details, EXCLUSION_LABELS, NOTIFY_KINDS, KST, trash_c
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
-from ui_theme import STYLE, icon
+from ui_theme import STYLE, icon, TONES, TOPIC_TONES, NAV_TONES, set_tone
 
 def label(text, kind=None, wrap=False):
     w = QLabel()
@@ -28,7 +28,7 @@ def label(text, kind=None, wrap=False):
     w.setWordWrap(wrap)
     return w
 
-def button(text, fn, primary=False, icon_name=None):
+def button(text, fn, primary=False, icon_name=None, tone=None):
     mappings = {'Kaggle API 설정 열기 ↗': ('Kaggle API 설정 열기', 'arrow-up-right'), '연결 확인하고 시작하기 →': ('연결하고 시작하기', 'arrow-right'), '↻  지금 확인': ('최신 대회 확인', 'refresh-cw'), '← 이전': ('이전', 'chevron-left'),
                 '다음 →': ('다음', 'chevron-right'), '☆ 관심': ('관심 등록', 'bookmark'),
                 'Kaggle 원문 열기 ↗': ('대회 살펴보기', 'arrow-right'), '참가 규칙 확인': ('참가 조건 확인', 'layers'),
@@ -37,8 +37,19 @@ def button(text, fn, primary=False, icon_name=None):
                 '연결 해제': ('연결 해제', 'log-out'), '계정 연결 / 다시 연결': ('계정 연결', 'shield-check')}
     text, automatic_icon = mappings.get(text, (text, None))
     b = QPushButton(text)
-    if icon_name or automatic_icon:
-        b.setIcon(icon(icon_name or automatic_icon, '#137fa4' if primary else '#637087'))
+    selected_icon = icon_name or automatic_icon
+    if tone is None:
+        if selected_icon == 'rotate-ccw':
+            tone = 'teal'
+        elif selected_icon == 'bookmark-check' or (selected_icon == 'bookmark' and text):
+            tone = 'violet'
+        elif selected_icon == 'trash' and text in ('', '삭제'):
+            tone = 'danger'
+    if tone:
+        b.setProperty('tone', tone)
+    if selected_icon:
+        tint = ('#ffffff' if primary else TONES[tone]['ink']) if tone else ('#07324b' if primary else '#637087')
+        b.setIcon(icon(selected_icon, tint))
         b.setIconSize(QSize(19, 19))
     if primary:
         b.setObjectName('primary')
@@ -111,13 +122,21 @@ class CompetitionCard(QFrame):
             super().keyPressEvent(event)
 
 def topic_visual(topics):
-    if 'LLM / 생성형 AI' in topics or 'NLP' in topics:
-        return 'message-circle', '#8553b8', '#f0eafb'
-    if '시계열' in topics:
-        return 'trending-up', '#27a48c', '#e6f6f0'
-    if '이미지 / 영상' in topics:
-        return 'layers', '#637bc1', '#edf0fb'
-    return 'chart-no-axes-column-increasing', '#04a9d7', '#e0f7ff'
+    order = ['LLM / 생성형 AI', 'NLP', '시계열', '이미지 / 영상', '음성', 'AI 서비스 / 웹 개발', '정형 데이터 / SQL']
+    primary = next((name for name in order if name in topics), None)
+    tone, glyph = TOPIC_TONES[primary or '정형 데이터 / SQL']
+    colors = TONES[tone]
+    return primary or '분야 확인', glyph, colors['ink'], colors['surface']
+
+
+def deadline_tone(value, long_practice=False):
+    end = date(value)
+    if not end or end <= now():
+        return 'slate'
+    if long_practice:
+        return 'teal'
+    days = (end.astimezone(KST).date() - now().astimezone(KST).date()).days
+    return 'danger' if days <= 3 else 'amber' if days <= 7 else 'slate'
 
 def icon_tile(name, color, background):
     tile = QLabel()
@@ -498,6 +517,7 @@ class Window(QMainWindow):
             b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
             b.setFixedSize(84, 80)
             b.setObjectName('nav')
+            b.setProperty('tone', NAV_TONES[i])
             b.setCheckable(True)
             b.setAccessibleName(text)
             b.clicked.connect(lambda checked=False, index=i: self.navigate(index))
@@ -599,7 +619,7 @@ class Window(QMainWindow):
         self.page_index = 0
         for i, b in enumerate(self.nav):
             b.setChecked(i == index)
-            b.setIcon(icon(self.nav_icons[i], '#0088b5' if i == index else '#627087', 25))
+            b.setIcon(icon(self.nav_icons[i], TONES[NAV_TONES[i]]['ink'] if i == index else '#627087', 25))
         self.pages.setCurrentIndex(0 if index <= 1 else index - 1)
         if index <= 1:
             self.render()
@@ -645,7 +665,7 @@ class Window(QMainWindow):
         group_row = QHBoxLayout()
         group_row.addWidget(self.collection_tabs, 0, Qt.AlignmentFlag.AlignLeft)
         group_row.addStretch()
-        self.trash_button = button('삭제 보관함', self.show_trash_dialog, icon_name='trash')
+        self.trash_button = button('삭제 보관함', self.show_trash_dialog, icon_name='trash', tone='slate')
         group_row.addWidget(self.trash_button)
         layout.addLayout(group_row)
         chip_row = QHBoxLayout()
@@ -653,6 +673,7 @@ class Window(QMainWindow):
         for text in ['추천', '전체', '정형 데이터', 'LLM · NLP']:
             chip = button(text, lambda checked=False, t=text: self.choose_chip(t))
             chip.setObjectName('chipButton')
+            chip.setProperty('tone', 'indigo' if text == 'LLM · NLP' else 'slate' if text == '전체' else 'blue')
             chip.setCheckable(True)
             self.quick_chips.append(chip)
             chip_row.addWidget(chip)
@@ -831,6 +852,7 @@ class Window(QMainWindow):
         separate = profile['separate_education']
         self.collection_tabs.setVisible(separate)
         education_view = separate and self.collection_tabs.currentIndex() == 1
+        set_tone(self.collection_tabs, 'teal' if education_view else 'blue')
         self.sync_chips()
         intro = '관심 등록 대회 목록' if self.mode == 1 else ('입문·연습 대회 목록' if education_view else '관심 분야·참가 조건 기준 대회 목록')
         self.hero_text.setText(('예시 데이터 화면 · ' if self.preview else '') + intro)
@@ -911,13 +933,14 @@ class Window(QMainWindow):
             item, v = row['item'], row['verdict']
             title = str(item.get('title', row['ref']))
             panel = CompetitionCard(title)
+            panel.setProperty('context', 'bookmark' if self.mode == 1 else 'education' if education_view else 'general')
             self.card_frames[row['ref']] = panel
             panel.clicked.connect(lambda ref=row['ref']: self.select(ref))
             panel.setMinimumHeight(210)
             p = QHBoxLayout(panel)
             p.setContentsMargins(18, 20, 18, 20)
             p.setSpacing(16)
-            topic_icon, color, background = topic_visual(v['topics'])
+            primary_topic, topic_icon, color, background = topic_visual(v['topics'])
             p.addWidget(icon_tile(topic_icon, color, background), 0, Qt.AlignmentFlag.AlignVCenter)
             body = QVBoxLayout()
             body.setSpacing(10)
@@ -926,6 +949,7 @@ class Window(QMainWindow):
             top.addWidget(name, 1)
             if v['education']:
                 badge = label('교육용', 'chip')
+                badge.setProperty('tone', 'teal')
                 badge.setToolTip(v['education_reason'])
                 top.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
             save = button('', lambda checked=False, ref=row['ref']: self.toggle_bookmark(ref), icon_name='bookmark-check' if row['starred'] else 'bookmark')
@@ -943,7 +967,7 @@ class Window(QMainWindow):
             body.addLayout(top)
             desc = plain(item.get('description', ''))
             body.addWidget(label(desc[:110] + ('…' if len(desc) > 110 else ''), 'cardDescription', True))
-            tag = label(v['topics'][0] if v['topics'] else '분야 확인', 'chip')
+            tag = label(primary_topic, 'chip')
             tag.setStyleSheet(f'background:{background};color:{color};border-radius:11px;padding:5px 9px;font-size:14px;')
             body.addWidget(tag, 0, Qt.AlignmentFlag.AlignLeft)
             meta = QHBoxLayout()
@@ -954,7 +978,9 @@ class Window(QMainWindow):
             meta.addWidget(label(end.astimezone(KST).strftime('%Y.%m.%d') if end else '마감 확인', 'cardDate'))
             if end:
                 long_practice = v['education'] and end > now() + timedelta(days=365)
-                meta.addWidget(label('장기 운영' if long_practice else deadline_badge(item.get('deadline')), 'deadline'))
+                deadline = label('장기 운영' if long_practice else deadline_badge(item.get('deadline')), 'deadline')
+                deadline.setProperty('tone', deadline_tone(item.get('deadline'), long_practice))
+                meta.addWidget(deadline)
             meta.addStretch()
             body.addLayout(meta)
             if row['exclusions']:
@@ -1011,7 +1037,7 @@ class Window(QMainWindow):
             self.detail.setHtml('<h2>대회 상세 정보</h2><p>대회를 선택하면 일정과 추천 이유를 확인할 수 있습니다.</p>')
             return
         self.star_button.setText('관심 해제' if row['starred'] else '관심 등록')
-        self.star_button.setIcon(icon('bookmark-check' if row['starred'] else 'bookmark'))
+        self.star_button.setIcon(icon('bookmark-check' if row['starred'] else 'bookmark', TONES['violet']['ink']))
         self.hide_button.setText('숨김 해제' if row['hidden'] else '숨기기')
         item = json.loads(row['body'])
         v = assess(item, self.store.profile())
@@ -1041,7 +1067,8 @@ class Window(QMainWindow):
             long_practice = v['education'] and end and end > now() + timedelta(days=365)
             deadline_text = display_date(item.get('deadline')) + (' · API상 마감' if long_practice else '  ' + deadline_badge(item.get('deadline')))
             summary = '<h2 style="font-size:28px;">' + esc(item.get('title')) + '</h2><p style="font-size:18px;color:#627086;">' + esc(plain(item.get('description'))) + '</p>'
-            summary += '<p style="color:#0084ae;font-weight:600">' + esc(' · '.join(v['topics']) or '분야 확인 필요') + '</p>'
+            _, _, topic_ink, _ = topic_visual(v['topics'])
+            summary += '<p style="color:' + topic_ink + ';font-weight:600">' + esc(' · '.join(v['topics']) or '분야 확인 필요') + '</p>'
             summary += classification
             summary += ('<h3>장기 운영 일정</h3><p>' if long_practice else '<h3>제출 마감</h3><p>') + esc(deadline_text) + '</p>'
             summary += '<h3>추천 이유</h3><p>' + '<br>'.join(esc(x) for x in v['reasons']) + '</p>'
@@ -1212,6 +1239,7 @@ class Window(QMainWindow):
         for n, name in enumerate(TOPICS):
             chk = QCheckBox(name)
             chk.setObjectName('choice')
+            chk.setProperty('tone', TOPIC_TONES[name][0])
             chk.setChecked(name in p['topics'])
             self.topic_checks[name] = chk
             grid.addWidget(chk, n // 2, n % 2)
@@ -1336,6 +1364,8 @@ class Window(QMainWindow):
         outer.setContentsMargins(20, 18, 20, 0)
         outer.addWidget(label('나의 설정', 'heading'))
         self.settings_tabs = QTabWidget()
+        self.settings_tabs.tabBar().setObjectName('settingsTabs')
+        self.settings_tabs.tabBar().setProperty('tone', 'blue')
         self.settings_tab_scrolls = []
         groups = [('프로필·환경', [connection, hardware]), ('관심·참가', [interests, participation]),
                   ('수집·보기', [education_card, filters]), ('알림', [notification_card])]
@@ -1389,6 +1419,7 @@ class Window(QMainWindow):
 
     def settings_section_changed(self, index):
         self.settings_scroll = self.settings_tab_scrolls[index]
+        set_tone(self.settings_tabs.tabBar(), ('blue', 'violet', 'teal', 'amber')[index])
 
     def update_notification_controls(self, *_):
         enabled = self.notifications.isChecked()
