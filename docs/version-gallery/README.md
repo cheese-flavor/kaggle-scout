@@ -1,26 +1,71 @@
-# 버전별 프로그램 화면
+# 버전별 화면 비교
 
-릴리스의 예시 데이터 화면 원본을 보관합니다. 실제 개인 계정 화면은 포함하지 않습니다. 기존 버전 이미지는 덮어쓰지 않습니다. 출처는 sources.json에 기록합니다.
+왼쪽은 이전 버전, 오른쪽은 다음 버전입니다. 이미지를 누르면 원본 크기로 볼 수 있습니다. 모든 화면은 실제 앱의 예시 데이터이며, 화면 크기와 예시 대회는 버전마다 다를 수 있습니다.
 
-새 릴리스에는 실제 앱에서 만든 예시 화면을 `docs`에 저장하고 다음 명령으로 추가합니다. 동일 버전에서 화면을 더 남길 때는 다른 파일명을 사용합니다. 서로 다른 내용의 기존 파일을 덮어쓰려 하면 중단합니다.
+최신 변경부터 보여줍니다. 각 버전의 전체 원본은 아래 **원본 화면 보관함**에 그대로 남깁니다.
 
-```powershell
-python archive_screenshots.py --version 0.5.0 --fixture-only docs/dashboard-final-v050.png
-```
+## v0.4.0 → v0.5.0
 
-## v0.1.1
+| 이전 · v0.4.0 | 이후 · v0.5.0 |
+|---|---|
+| [![이전 화면](v0.4.0/discovery.png)](v0.4.0/discovery.png) | [![이후 화면](v0.5.0/dashboard-final-v050.png)](v0.5.0/dashboard-final-v050.png) |
+
+- 왼쪽 메뉴를 아이콘 레일로 줄이고, 검색 캡슐·분야 칩·선택 대회 강조를 적용했습니다.
+- 상세 정보를 요약/전체 정보로 나누고 실제 기능 아이콘을 적용했습니다.
+- 설정은 4개 탭으로 분리했으며 작은 창에서는 보조 동작을 더보기로 모았습니다.
+
+## v0.3.0 → v0.4.0
+
+| 이전 · v0.3.0 | 이후 · v0.4.0 |
+|---|---|
+| [![이전 화면](v0.3.0/01-discovery.png)](v0.3.0/01-discovery.png) | [![이후 화면](v0.4.0/discovery.png)](v0.4.0/discovery.png) |
+
+- 탐색의 기본 배치는 유지하면서 대회별 제외 이유를 확인할 수 있게 했습니다.
+- 알림 종류와 KST 수신 시간 설정을 추가했습니다. 기능 화면은 원본 보관함에 있습니다.
+- 왼쪽 탐색 이미지는 v0.4.0 배포에 보관된 v0.3.0 촬영본입니다. v0.4.0의 새 기능은 별도 원본 화면에서 확인할 수 있습니다.
+
+## v0.2.0 → v0.3.0
+
+| 이전 · v0.2.0 | 이후 · v0.3.0 |
+|---|---|
+| [![이전 화면](v0.2.0/dashboard.png)](v0.2.0/dashboard.png) | [![이후 화면](v0.3.0/01-discovery.png)](v0.3.0/01-discovery.png) |
+
+- 탐색 화면의 안내와 빈 상태를 정리했습니다.
+- 설정에는 VRAM·수집 주기·추천 범위 슬라이더와 고정 저장 영역을 추가했습니다. 설정 화면은 원본 보관함에서 볼 수 있습니다.
+
+## v0.1.1 → v0.2.0
+
+| 이전 · v0.1.1 | 이후 · v0.2.0 |
+|---|---|
+| [![이전 화면](v0.1.1/dashboard.png)](v0.1.1/dashboard.png) | [![이후 화면](v0.2.0/dashboard.png)](v0.2.0/dashboard.png) |
+
+- 기본 글꼴을 Pretendard로 바꾸고 반복 안내를 줄였습니다.
+- 목록 페이지 이동·표시 개수와 참가 대상 설정을 추가했습니다.
+
+## 원본 화면 보관함
+
+기존 이미지를 덮어쓰지 않습니다. 출처 태그와 경로는 [sources.json](sources.json)에 기록합니다.
+
+<details>
+<summary>v0.1.1 전체 화면</summary>
 
 ![v0.1.1 dashboard](v0.1.1/dashboard.png)
 
 ![v0.1.1 connection](v0.1.1/connection.png)
 
-## v0.2.0
+</details>
+
+<details>
+<summary>v0.2.0 전체 화면</summary>
 
 ![v0.2.0 dashboard](v0.2.0/dashboard.png)
 
 ![v0.2.0 connection](v0.2.0/connection.png)
 
-## v0.3.0
+</details>
+
+<details>
+<summary>v0.3.0 전체 화면</summary>
 
 ![v0.3.0 01-discovery](v0.3.0/01-discovery.png)
 
@@ -28,13 +73,21 @@ python archive_screenshots.py --version 0.5.0 --fixture-only docs/dashboard-fina
 
 ![v0.3.0 03-empty](v0.3.0/03-empty.png)
 
-## v0.4.0
+</details>
+
+<details>
+<summary>v0.4.0 전체 화면</summary>
 
 ![v0.4.0 exclusion-reasons](v0.4.0/exclusion-reasons.png)
 
 ![v0.4.0 notification-settings](v0.4.0/notification-settings.png)
 
-## v0.5.0
+![v0.4.0 discovery](v0.4.0/discovery.png)
+
+</details>
+
+<details>
+<summary>v0.5.0 전체 화면</summary>
 
 ![v0.5.0 dashboard-v050](v0.5.0/dashboard-v050.png)
 
@@ -43,3 +96,15 @@ python archive_screenshots.py --version 0.5.0 --fixture-only docs/dashboard-fina
 ![v0.5.0 notifications-v050](v0.5.0/notifications-v050.png)
 
 ![v0.5.0 dashboard-final-v050](v0.5.0/dashboard-final-v050.png)
+
+</details>
+
+## 다음 릴리스에 추가하기
+
+실제 앱에서 예시 데이터로 촬영한 PNG만 추가합니다. 실계정·개인 기록은 포함하지 않습니다. 동일 버전에 추가 화면을 남길 때는 새 파일명을 사용하세요. 기존 이미지와 다르면 보관 스크립트가 중단합니다.
+
+```powershell
+python archive_screenshots.py --version 0.6.0 --fixture-only docs/dashboard-v060.png
+```
+
+새 버전의 대표 이미지와 짧은 변경 설명을 `releases.json`에 추가한 뒤 `python render_gallery.py`를 실행하면 비교 표도 갱신됩니다.

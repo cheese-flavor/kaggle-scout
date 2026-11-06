@@ -55,26 +55,32 @@
   },
   {
     "version": "v0.5.0",
-    "source": "v0.5.0:docs/dashboard-v050.png",
+    "source": "v0.5.0:docs/version-gallery/v0.5.0/dashboard-v050.png",
     "image": "v0.5.0/dashboard-v050.png",
     "data": "illustrative fixtures"
   },
   {
     "version": "v0.5.0",
-    "source": "v0.5.0:docs/settings-v050.png",
+    "source": "v0.5.0:docs/version-gallery/v0.5.0/settings-v050.png",
     "image": "v0.5.0/settings-v050.png",
     "data": "illustrative fixtures"
   },
   {
     "version": "v0.5.0",
-    "source": "v0.5.0:docs/notifications-v050.png",
+    "source": "v0.5.0:docs/version-gallery/v0.5.0/notifications-v050.png",
     "image": "v0.5.0/notifications-v050.png",
     "data": "illustrative fixtures"
   },
   {
     "version": "v0.5.0",
-    "source": "v0.5.0:docs/dashboard-final-v050.png",
+    "source": "v0.5.0:docs/version-gallery/v0.5.0/dashboard-final-v050.png",
     "image": "v0.5.0/dashboard-final-v050.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.4.0",
+    "source": "v0.4.0:docs/ux-v030/01-discovery.png",
+    "image": "v0.4.0/discovery.png",
     "data": "illustrative fixtures"
   }
 ]
