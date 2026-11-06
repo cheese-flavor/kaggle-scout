@@ -34,7 +34,9 @@ DEFAULT = {'name': '나의 프로필', 'topics': list(TOPICS), 'skills': 'Python
            'purposes': ['학습', '포트폴리오', '취업', '수상'], 'min_score': 0,
            'page_size': 10, 'audiences': ['general'], 'include_unknown_audience': True,
            'notify_kinds': list(NOTIFY_KINDS), 'notify_schedule': 'always',
-           'notify_start': '09:00', 'notify_end': '22:00'}
+           'notify_start': '09:00', 'notify_end': '22:00',
+           'separate_education': True, 'education_playground': False,
+           'notify_education': False}
 
 def migrate_profile(value):
     value = dict(value)
@@ -144,6 +146,25 @@ def slug(item):
         raise ValueError('올바르지 않은 Kaggle 대회 식별자입니다.')
     return value
 
+def education_info(item, profile):
+    """Use category evidence, never a distant deadline, to identify practice contests."""
+    category = re.sub(r'[^a-z0-9]', '', str(item.get('category', '')).lower())
+    if category in ('gettingstarted', 'hostsegmentgettingstarted', 'competitioncategorygettingstarted'):
+        return True, 'Kaggle Getting Started 카테고리'
+    if profile.get('education_playground', False) and category in ('playground', 'hostsegmentplayground', 'competitioncategoryplayground'):
+        return True, '설정에서 Playground를 교육용으로 포함'
+    # Exact identifiers only; generic words such as "beginner" are not sufficient.
+    starters = {'titanic', 'house-prices-advanced-regression-techniques', 'digit-recognizer', 'spaceship-titanic'}
+    ref = str(item.get('ref', '')).rstrip('/').split('/')[-1].lower()
+    if not category and ref in starters:
+        return True, 'Kaggle 공식 입문 대회 식별자 (카테고리 미제공)'
+    return False, '입문 카테고리 근거 없음 · 일반 대회로 표시'
+
+
+def allow_new_recommendation(item, profile):
+    return profile.get('notify_education', False) or not education_info(item, profile)[0]
+
+
 def assess(item, profile, at=None):
     at = at or now()
     text = plain(' '.join([str(item.get(k, '')) for k in ('title', 'description', 'tags', 'pages')])).lower()
@@ -197,7 +218,9 @@ def assess(item, profile, at=None):
         gpu += ' · 정형 데이터 기본 모델부터 검토 가능'
     if 'LLM / 생성형 AI' in matched or '이미지 / 영상' in matched:
         gpu += ' · 모델 크기·학습 방식·제출 제한 확인'
+    education, education_reason = education_info(item, profile)
     return {'score': min(score, 100), 'topics': matched, 'reasons': reasons,
+            'education': education, 'education_reason': education_reason,
             'excluded': excluded, 'gpu': gpu, 'eligibility': eligibility, 'audiences': groups,
             'api': '유료 API 필수 문구 감지' if paid else '유료 API 필요 여부: 규칙 확인 필요'}
 
@@ -340,7 +363,7 @@ class Store:
                 verdict = assess(item, profile, at)
                 eligible = not verdict['excluded'] and verdict['score'] >= profile['min_score']
                 kind = None
-                if not first and old is None and eligible:
+                if not first and old is None and eligible and allow_new_recommendation(item, profile):
                     kind = '새 추천'
                 elif old and old['hash'] != digest and old['starred'] and not old['hidden']:
                     kind = '정보 변경'
@@ -378,7 +401,7 @@ class Store:
                 if row:
                     item = json.loads(row['body'])
                     if event['kind'] == '새 추천':
-                        skip = skip or bool(exclusion_details(item, profile, assess(item, profile, at)))
+                        skip = skip or not allow_new_recommendation(item, profile) or bool(exclusion_details(item, profile, assess(item, profile, at)))
                     elif event['kind'] in ('마감 임박', '정보 변경'):
                         skip = skip or not row['starred']
                     if event['kind'] == '마감 임박':
