@@ -59,3 +59,15 @@ Card titles remain 24px. Description/date increase to 17px, topic to 14px, and D
 84 tests pass. New coverage includes concurrent sync/expiry suppression, KST calendar-day expiry (rather than a 24-hour offset), expiry at midnight, unknown deadlines, updated deadlines, resync suppression, tombstone retention, legacy schema migration, cancelled pending alerts, restart cleanup, UI restoration/bookmarks, cancelled nonrecoverable deletion, display-name priority, token non-disclosure and long names at 960 × 680. This does not establish high-DPI or full assistive-technology compliance.
 
 v0.7.0 packaged verification: clean build and installed executable both render and exit normally with isolated data. Shortcut and executable metadata point to 0.7.0. User DB existence and SHA256 remain unchanged after installation; schema migration is exercised by legacy-database tests and occurs at the next real launch.
+
+## v0.8.0 · Semantic color and compact tray
+
+Current-run Qt fixture captures include normal discovery/bookmarks/settings at 1180 × 820, education at 960 × 680, urgency examples at 1180 × 1058 and the actual compact two-action QMenu at 74 × 64 pixels in this environment. The discovery, bookmark, minimum education, recovery, notification and urgency captures were opened and inspected. All contain synthetic data. The selected v0.5.0 structure remains, with the color changes requested in v0.8.0; this is not an attempt to reproduce the old palette.
+
+General selection is blue, bookmarks violet, education/recovery teal, imminent deadlines amber/red, image topics rose, LLM indigo and neutral dates slate. Labels/icons/countdowns remain present alongside color. The icon used for audio is the pinned Lucide audio-lines asset. Disabled actions retain neutral styling. The compact tray menu contains only app open and quit; manual refresh remains in the main window.
+
+All eight semantic ink/surface pairs were calculated at approximately 5.30–6.25:1 (rounded to two decimals). Primary text pairs also exceed 4.5:1. The measured RGB tokens are in `docs/color-contrast-v080.json`. This checks token contrast, not every antialiased pixel or full accessibility compliance.
+
+85 tests pass, including a new tray interaction check that opens the window, calls quit, and does not refresh. Notification target/time/queue semantics are unchanged; the settings now explain new recommendations versus bookmarked changes/deadlines. Actual Windows notification delivery, another display's DPI and assistive technologies remain outside this validation scope.
+
+v0.8.0 packaged verification: clean build starts, renders and exits normally with isolated preview data. The packaged empty state was inspected. Local installation is pending the running v0.7.0 app closing.

@@ -1,4 +1,4 @@
-Kaggle Scout v0.7.0
+Kaggle Scout v0.8.0
 
 1. 바탕화면의 Kaggle Scout 바로가기 또는 run.bat를 실행합니다.
    실행 파일: dist\KaggleScout\KaggleScout.exe
@@ -12,7 +12,7 @@ Kaggle Scout v0.7.0
 프로그램 자체는 AI API를 호출하지 않습니다.
 
 창을 닫으면 트레이에서 계속 실행됩니다.
-완전히 종료하려면 트레이 아이콘을 우클릭하여 종료하세요.
+완전히 종료하려면 트레이 아이콘을 우클릭하여 종료를 누르세요.
 PC가 꺼져 있거나 앱이 종료되어 있으면 확인하지 않습니다.
 
 다른 PC에서는 dist\KaggleScout 폴더 전체를 옮기고 다시 연결합니다.
