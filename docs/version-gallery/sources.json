@@ -208,5 +208,65 @@
     "source": "v0.8.0:docs/tray-menu-v080.png",
     "image": "v0.8.0/tray-menu-v080.png",
     "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.1",
+    "source": "v0.8.1:docs/bookmarks-v081.png",
+    "image": "v0.8.1/bookmarks-v081.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.1",
+    "source": "v0.8.1:docs/collection-settings-v081.png",
+    "image": "v0.8.1/collection-settings-v081.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.1",
+    "source": "v0.8.1:docs/dashboard-v081.png",
+    "image": "v0.8.1/dashboard-v081.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.1",
+    "source": "v0.8.1:docs/deadline-colors-v081.png",
+    "image": "v0.8.1/deadline-colors-v081.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.1",
+    "source": "v0.8.1:docs/education-small-v081.png",
+    "image": "v0.8.1/education-small-v081.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.1",
+    "source": "v0.8.1:docs/education-v081.png",
+    "image": "v0.8.1/education-v081.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.1",
+    "source": "v0.8.1:docs/notifications-v081.png",
+    "image": "v0.8.1/notifications-v081.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.1",
+    "source": "v0.8.1:docs/profile-settings-v081.png",
+    "image": "v0.8.1/profile-settings-v081.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.1",
+    "source": "v0.8.1:docs/trash-v081.png",
+    "image": "v0.8.1/trash-v081.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.8.1",
+    "source": "v0.8.1:docs/tray-menu-v081.png",
+    "image": "v0.8.1/tray-menu-v081.png",
+    "data": "illustrative fixtures"
   }
 ]

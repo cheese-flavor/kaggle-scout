@@ -4,6 +4,17 @@
 
 최신 변경부터 보여줍니다. 각 버전의 전체 원본은 아래 **원본 화면 보관함**에 그대로 남깁니다.
 
+## v0.8.0 → v0.8.1
+
+| 이전 · v0.8.0 | 이후 · v0.8.1 |
+|---|---|
+| [![이전 화면](v0.8.0/dashboard-v080.png)](v0.8.0/dashboard-v080.png) | [![이후 화면](v0.8.1/dashboard-v081.png)](v0.8.1/dashboard-v081.png) |
+
+- 목록의 관심·삭제 버튼을 제거하고 대회 선택과 정보 표시만 남겼습니다.
+- 요약/전체 정보 공통 하단의 관심·삭제 버튼으로 읽은 뒤 처리하도록 통합했습니다.
+- 작은 창에서도 두 동작을 직접 표시하고, 더보기에는 참가 조건과 정보 보기 전환을 둡니다. [작은 창](v0.8.1/education-small-v081.png)
+- 관심 화면에도 같은 동작 위치를 적용합니다. [관심 화면](v0.8.1/bookmarks-v081.png)
+
 ## v0.7.0 → v0.8.0
 
 | 이전 · v0.7.0 | 이후 · v0.8.0 |
@@ -185,6 +196,31 @@
 ![v0.8.0 trash-v080](v0.8.0/trash-v080.png)
 
 ![v0.8.0 tray-menu-v080](v0.8.0/tray-menu-v080.png)
+
+</details>
+
+<details>
+<summary>v0.8.1 전체 화면</summary>
+
+![v0.8.1 bookmarks-v081](v0.8.1/bookmarks-v081.png)
+
+![v0.8.1 collection-settings-v081](v0.8.1/collection-settings-v081.png)
+
+![v0.8.1 dashboard-v081](v0.8.1/dashboard-v081.png)
+
+![v0.8.1 deadline-colors-v081](v0.8.1/deadline-colors-v081.png)
+
+![v0.8.1 education-small-v081](v0.8.1/education-small-v081.png)
+
+![v0.8.1 education-v081](v0.8.1/education-v081.png)
+
+![v0.8.1 notifications-v081](v0.8.1/notifications-v081.png)
+
+![v0.8.1 profile-settings-v081](v0.8.1/profile-settings-v081.png)
+
+![v0.8.1 trash-v081](v0.8.1/trash-v081.png)
+
+![v0.8.1 tray-menu-v081](v0.8.1/tray-menu-v081.png)
 
 </details>
 
