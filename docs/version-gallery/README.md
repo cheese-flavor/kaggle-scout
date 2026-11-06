@@ -4,6 +4,17 @@
 
 최신 변경부터 보여줍니다. 각 버전의 전체 원본은 아래 **원본 화면 보관함**에 그대로 남깁니다.
 
+## v0.8.1 → v0.9.0
+
+| 이전 · v0.8.1 | 이후 · v0.9.0 |
+|---|---|
+| [![이전 화면](v0.8.1/dashboard-v081.png)](v0.8.1/dashboard-v081.png) | [![이후 화면](v0.9.0/dashboard-v090.png)](v0.9.0/dashboard-v090.png) |
+
+- 오른쪽 요약/전체 정보 탭을 없애고 모든 정보를 한 스크롤 화면으로 통합했습니다.
+- 마감은 상단에서 강조하고 일정·참가/제출·내 환경·추천 이유·추가 규칙을 구분했습니다. [정보 본문](v0.9.0/detail-information-v090.png)
+- 관심·삭제는 상세 하단에 유지하며, 같은 대회 관심 등록 후에도 읽던 위치를 유지합니다.
+- 글자 크기·줄바꿈·항목/값 정렬을 조정했습니다. [작은 창](v0.9.0/education-small-v090.png)
+
 ## v0.8.0 → v0.8.1
 
 | 이전 · v0.8.0 | 이후 · v0.8.1 |
@@ -221,6 +232,33 @@
 ![v0.8.1 trash-v081](v0.8.1/trash-v081.png)
 
 ![v0.8.1 tray-menu-v081](v0.8.1/tray-menu-v081.png)
+
+</details>
+
+<details>
+<summary>v0.9.0 전체 화면</summary>
+
+![v0.9.0 bookmarks-v090](v0.9.0/bookmarks-v090.png)
+
+![v0.9.0 collection-settings-v090](v0.9.0/collection-settings-v090.png)
+
+![v0.9.0 dashboard-v090](v0.9.0/dashboard-v090.png)
+
+![v0.9.0 deadline-colors-v090](v0.9.0/deadline-colors-v090.png)
+
+![v0.9.0 detail-information-v090](v0.9.0/detail-information-v090.png)
+
+![v0.9.0 education-small-v090](v0.9.0/education-small-v090.png)
+
+![v0.9.0 education-v090](v0.9.0/education-v090.png)
+
+![v0.9.0 notifications-v090](v0.9.0/notifications-v090.png)
+
+![v0.9.0 profile-settings-v090](v0.9.0/profile-settings-v090.png)
+
+![v0.9.0 trash-v090](v0.9.0/trash-v090.png)
+
+![v0.9.0 tray-menu-v090](v0.9.0/tray-menu-v090.png)
 
 </details>
 

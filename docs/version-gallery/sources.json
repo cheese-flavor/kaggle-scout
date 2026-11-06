@@ -268,5 +268,71 @@
     "source": "v0.8.1:docs/tray-menu-v081.png",
     "image": "v0.8.1/tray-menu-v081.png",
     "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/bookmarks-v090.png",
+    "image": "v0.9.0/bookmarks-v090.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/collection-settings-v090.png",
+    "image": "v0.9.0/collection-settings-v090.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/dashboard-v090.png",
+    "image": "v0.9.0/dashboard-v090.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/deadline-colors-v090.png",
+    "image": "v0.9.0/deadline-colors-v090.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/detail-information-v090.png",
+    "image": "v0.9.0/detail-information-v090.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/education-small-v090.png",
+    "image": "v0.9.0/education-small-v090.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/education-v090.png",
+    "image": "v0.9.0/education-v090.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/notifications-v090.png",
+    "image": "v0.9.0/notifications-v090.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/profile-settings-v090.png",
+    "image": "v0.9.0/profile-settings-v090.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/trash-v090.png",
+    "image": "v0.9.0/trash-v090.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.9.0",
+    "source": "v0.9.0:docs/tray-menu-v090.png",
+    "image": "v0.9.0/tray-menu-v090.png",
+    "data": "illustrative fixtures"
   }
 ]

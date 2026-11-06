@@ -30,6 +30,10 @@ def capture(version):
     ]
     items = [{'ref': f'fixture-{i}', 'title': t, 'description': d, 'category': cat, 'tags': tags,
               'deadline': '2099-12-31T14:59:00Z' if i >= 3 else (now().replace(hour=14, minute=59, second=0, microsecond=0) + timedelta(days=24)).isoformat(),
+              'enabledDate': (now() - timedelta(days=6)).isoformat() if i < 3 else None,
+              'newEntrantDeadline': (now() + timedelta(days=21)).isoformat() if i < 3 else None,
+              'mergerDeadline': (now() + timedelta(days=22)).isoformat() if i < 3 else None,
+              'teamCount': 128,
               'reward': '가상 예시', 'evaluationMetric': '예시 지표', 'maxTeamSize': 5}
              for i, (t, d, cat, tags) in enumerate(values)]
     (root / 'work').mkdir(exist_ok=True)
@@ -50,6 +54,9 @@ def capture(version):
 
         try:
             shot('dashboard')
+            window.detail.verticalScrollBar().setValue(220)
+            shot('detail-information')
+            window.detail.verticalScrollBar().setValue(0)
             window.collection_tabs.setCurrentIndex(1)
             shot('education')
             window.resize(960, 680)
