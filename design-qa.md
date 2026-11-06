@@ -47,3 +47,15 @@ The first compact capture left too little detail space after adding the group sw
 63 tests pass, including classification evidence, long-deadline false positives, legacy profile defaults, storage retention, notification opt-in and queued-alert checks, group/filter/pagination behavior, education bookmarking, exclusion navigation, imported settings and compact information access. High-DPI and full accessibility limitations above still apply.
 
 v0.6.0 packaged verification: both clean build and installed executable start/render/exit successfully with isolated data. The packaged empty state was inspected. Shortcut and executable metadata resolve to 0.6.0. Existing user DB existence and SHA256 are unchanged after installation.
+
+## v0.7.0 · Trash, readable metadata, personal headings
+
+Actual fixture captures: `docs/dashboard-v070.png`, `docs/bookmarks-v070.png`, `docs/education-v070.png`, and settings at 1180 × 820; education at 960 × 680; `docs/trash-v070.png` at 740 × 590. These use a synthetic display name and an isolated database. The captured profile page is scrolled to the name/hardware controls. Previous release images remain intact.
+
+The main heading is “대회 탐색.” Interest headings use a configured display name, an already-stored Kaggle username, or “관심 대회.” Long names are elided while retaining the functional suffix, with full text in a tooltip. The sidebar name is also elided so it cannot enlarge the minimum window. Headings and empty-state classifications use nouns.
+
+Card titles remain 24px. Description/date increase to 17px, topic to 14px, and D-day to 18px bold. Topic and date occupy separate rows to prevent narrow-window collisions. The normal and minimum captures, personalized interest page, recovery dialog and name settings were opened and inspected. Primary actions and enlarged date badges remain unobstructed in those captures.
+
+84 tests pass. New coverage includes concurrent sync/expiry suppression, KST calendar-day expiry (rather than a 24-hour offset), expiry at midnight, unknown deadlines, updated deadlines, resync suppression, tombstone retention, legacy schema migration, cancelled pending alerts, restart cleanup, UI restoration/bookmarks, cancelled nonrecoverable deletion, display-name priority, token non-disclosure and long names at 960 × 680. This does not establish high-DPI or full assistive-technology compliance.
+
+v0.7.0 packaged verification: clean build and installed executable both render and exit normally with isolated data. Shortcut and executable metadata point to 0.7.0. User DB existence and SHA256 remain unchanged after installation; schema migration is exercised by legacy-database tests and occurs at the next real launch.

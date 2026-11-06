@@ -1,4 +1,4 @@
-Kaggle Scout v0.6.0
+Kaggle Scout v0.7.0
 
 1. 바탕화면의 Kaggle Scout 바로가기 또는 run.bat를 실행합니다.
    실행 파일: dist\KaggleScout\KaggleScout.exe
