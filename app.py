@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabe
     QFileDialog, QSystemTrayIcon, QMenu, QSplitter, QSlider, QListWidget, QListWidgetItem, QTimeEdit, QToolButton, QTabWidget, QTabBar, QWidgetAction)
 from core import Store, Kaggle, DEFAULT, TOPICS, AUDIENCES, validate_profile, read_json_file, validate_credentials, assess, now, date, display_date, plain, slug
 from installation import data_directory, migrate_database
-from core import exclusion_details, EXCLUSION_LABELS, NOTIFY_KINDS, KST
+from core import exclusion_details, EXCLUSION_LABELS, NOTIFY_KINDS, KST, trash_cutoff
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
@@ -261,6 +261,78 @@ class ExclusionDialog(QDialog):
             self.window.show_excluded.setChecked(True)
             self.window.search.setText(str(item.get('title', ref)))
             self.window.select(ref)
+
+def recovery_label(row):
+    until = date(row.get('trash_until'))
+    return (until.astimezone(KST) - timedelta(seconds=1)).strftime('%Y.%m.%d %H:%M까지 (KST)') if until else '종료일 미확인 · 일정 확인 전까지 보관'
+
+
+class TrashDialog(QDialog):
+    def __init__(self, window):
+        super().__init__(window)
+        self.window = window
+        self.setWindowTitle('삭제 보관함')
+        self.resize(740, 590)
+        box = QVBoxLayout(self)
+        box.setContentsMargins(24, 24, 24, 24)
+        box.setSpacing(14)
+        box.addWidget(label('삭제 보관함', 'heading'))
+        box.addWidget(label('종료일 전날 23:59까지 복구 가능 · 한국 시간 기준', 'muted', True))
+        self.search = QLineEdit()
+        self.search.setPlaceholderText('삭제된 대회 검색')
+        box.addWidget(self.search)
+        self.items = QListWidget()
+        self.items.setWordWrap(True)
+        box.addWidget(self.items, 1)
+        self.explanation = SafeTextBrowser()
+        self.explanation.setMaximumHeight(130)
+        box.addWidget(self.explanation)
+        self.result_label = label('', 'muted', True)
+        box.addWidget(self.result_label)
+        actions = QHBoxLayout()
+        actions.addStretch()
+        self.restore_button = button('복구', self.restore_selected, True, icon_name='rotate-ccw')
+        actions.addWidget(self.restore_button)
+        actions.addWidget(button('닫기', self.accept))
+        box.addLayout(actions)
+        self.search.textChanged.connect(self.fill)
+        self.items.currentItemChanged.connect(self.describe)
+        self.fill()
+
+    def fill(self, *_):
+        self.items.clear()
+        query = self.search.text().strip().lower()
+        rows = self.window.store.trash_rows()
+        for row in rows:
+            item = json.loads(row['body'])
+            title = str(item.get('title', row['ref']))
+            if query and query not in (title + ' ' + plain(item.get('description'))).lower():
+                continue
+            entry = QListWidgetItem(title + '\n복구 기한: ' + recovery_label(row))
+            entry.setData(Qt.ItemDataRole.UserRole, row)
+            self.items.addItem(entry)
+        self.restore_button.setEnabled(self.items.count() > 0)
+        if self.items.count():
+            self.items.setCurrentRow(0)
+        else:
+            self.explanation.setPlainText('검색 결과가 없습니다.' if rows and query else '삭제된 대회가 없습니다.')
+
+    def describe(self, current, previous=None):
+        if current:
+            row = current.data(Qt.ItemDataRole.UserRole)
+            item = json.loads(row['body'])
+            self.explanation.setPlainText(plain(item.get('description')) + '\n\n최종 제출 마감: ' + display_date(item.get('deadline')) + '\n복구 기한: ' + recovery_label(row))
+
+    def restore_selected(self):
+        current = self.items.currentItem()
+        if not current:
+            return
+        row = current.data(Qt.ItemDataRole.UserRole)
+        restored = self.window.store.restore(row['ref'])
+        self.fill()
+        self.window.render()
+        self.result_label.setText('복구 완료 · 기존 관심 등록 유지' if restored else '복구 기한 경과 · 보관 기록 정리')
+
 
 class Job(QThread):
     done = Signal(object)
@@ -543,7 +615,12 @@ class Window(QMainWindow):
         self.collection_tabs.addTab('교육용')
         self.collection_tabs.setAccessibleName('일반 대회와 교육용 구분')
         self.collection_tabs.currentChanged.connect(self.reset_page)
-        layout.addWidget(self.collection_tabs, 0, Qt.AlignmentFlag.AlignLeft)
+        group_row = QHBoxLayout()
+        group_row.addWidget(self.collection_tabs, 0, Qt.AlignmentFlag.AlignLeft)
+        group_row.addStretch()
+        self.trash_button = button('삭제 보관함', self.show_trash_dialog, icon_name='trash')
+        group_row.addWidget(self.trash_button)
+        layout.addLayout(group_row)
         chip_row = QHBoxLayout()
         self.quick_chips = []
         for text in ['추천', '전체', '정형 데이터', 'LLM · NLP']:
@@ -608,18 +685,24 @@ class Window(QMainWindow):
         self.star_button = button('☆ 관심', self.star)
         self.rules_button = button('참가 규칙 확인', self.load_pages)
         self.hide_button = button('숨기기', self.hide_item)
+        self.hide_button.setParent(detail)
+        self.hide_button.hide()
+        self.delete_button = button('삭제', lambda: self.delete_competition(self.selected), icon_name='trash')
         actions.addWidget(self.star_button)
-        actions.addWidget(self.hide_button)
+        actions.addWidget(self.delete_button)
         self.more_button = button('더보기', lambda: None, icon_name='sliders-horizontal')
+        self.more_button.setObjectName('iconButton')
+        self.more_button.setAccessibleName('더보기')
+        self.more_button.setToolTip('더보기')
         more_menu = QMenu(self.more_button)
         more_menu.addAction(icon('bookmark'), '관심 등록 / 해제', self.star)
         more_menu.addAction(icon('layers'), '참가 조건 확인', self.load_pages)
         more_menu.addAction(icon('eye-off'), '숨기기 / 해제', self.hide_item)
+        more_menu.addAction(icon('trash'), '삭제', lambda: self.delete_competition(self.selected))
         more_menu.addSeparator()
         more_menu.addAction('요약 보기', lambda: self.detail_tabs.setCurrentIndex(0))
         more_menu.addAction('전체 정보 보기', lambda: self.detail_tabs.setCurrentIndex(1))
         self.more_button.setMenu(more_menu)
-        self.more_button.hide()
         actions.addWidget(self.more_button)
         d.addLayout(actions)
         d.addWidget(self.rules_button)
@@ -651,9 +734,11 @@ class Window(QMainWindow):
         if hasattr(self, 'more_button'):
             compact = self.height() < 760
             self.star_button.setVisible(not compact)
-            self.hide_button.setVisible(not compact)
+            self.delete_button.setVisible(not compact)
             self.rules_button.setVisible(not compact)
-            self.more_button.setVisible(compact)
+            self.more_button.setText('더보기' if compact else '')
+            self.more_button.setMinimumWidth(0 if compact else 44)
+            self.more_button.setMaximumWidth(16777215 if compact else 44)
             self.detail_tabs.setVisible(not compact)
 
     def choose_chip(self, text):
@@ -711,6 +796,8 @@ class Window(QMainWindow):
         intro = '입문·연습용 대회를 따로 모았어요.' if education_view else '관심 분야에 맞는 다음 도전을 찾아보세요.'
         self.hero_text.setText(('예시 데이터 화면 · ' if self.preview else '') + intro)
         self.hero_text.setToolTip(f"관심 분야 {len(profile['topics'])}개 · {profile['interval']}분마다 확인")
+        deleted = self.store.trash_rows()
+        self.trash_button.setText(f'삭제 보관함 ({len(deleted)})')
         rows = self.store.rows()
         excluded_count = sum(bool(exclusion_details(json.loads(r['body']), profile)) for r in rows if not r['hidden'])
         self.exclusion_button.setText(f'제외 이유 ({excluded_count})')
@@ -808,6 +895,12 @@ class Window(QMainWindow):
             save.setAccessibleName('관심 해제' if row['starred'] else '관심 등록')
             save.setToolTip(save.accessibleName())
             top.addWidget(save, 0, Qt.AlignmentFlag.AlignTop)
+            remove = button('', lambda checked=False, ref=row['ref']: self.delete_competition(ref), icon_name='trash')
+            remove.setObjectName('iconButton')
+            remove.setFixedSize(36, 36)
+            remove.setAccessibleName(title + ' 삭제')
+            remove.setToolTip('삭제 보관함으로 이동')
+            top.addWidget(remove, 0, Qt.AlignmentFlag.AlignTop)
             body.addLayout(top)
             desc = plain(item.get('description', ''))
             body.addWidget(label(desc[:110] + ('…' if len(desc) > 110 else ''), 'muted', True))
@@ -843,6 +936,26 @@ class Window(QMainWindow):
         dialog.exec()
         dialog.deleteLater()
 
+    def show_trash_dialog(self):
+        dialog = TrashDialog(self)
+        dialog.exec()
+        dialog.deleteLater()
+        self.render()
+
+    def delete_competition(self, ref):
+        row = next((r for r in self.store.rows() if r['ref'] == ref), None)
+        if not row:
+            return
+        until = trash_cutoff(json.loads(row['body']))
+        if until and until <= now():
+            answer = QMessageBox.question(self, '복구 기한 경과', '종료일에 도달한 대회는 삭제 후 복구할 수 없습니다. 삭제하시겠습니까?', QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        if self.store.trash(ref):
+            self.render()
+            remaining = next((r for r in self.store.trash_rows() if r['ref'] == ref), None)
+            self.status.setText('삭제 보관함 이동 · ' + recovery_label(remaining) if remaining else '삭제 완료 · 복구 기한 경과')
+
     def select(self, ref):
         self.selected = ref
         for key, frame in getattr(self, 'card_frames', {}).items():
@@ -851,7 +964,7 @@ class Window(QMainWindow):
             frame.style().polish(frame)
             frame.update()
         row = self.selected_row()
-        for b in (self.star_button, self.hide_button, self.rules_button, self.original_button, self.more_button):
+        for b in (self.star_button, self.hide_button, self.delete_button, self.rules_button, self.original_button, self.more_button):
             b.setEnabled(row is not None)
         if not row:
             self.star_button.setText('관심 등록')
@@ -940,7 +1053,7 @@ class Window(QMainWindow):
         def task():
             items = Kaggle(self.credentials).collect()
             # Preserve previously fetched rules when the list API omits them.
-            previous = {r['ref']: json.loads(r['body']) for r in self.store.rows()}
+            previous = {r['ref']: json.loads(r['body']) for r in self.store.rows(include_deleted=True)}
             for item in items:
                 old = previous.get(slug(item), {})
                 if old.get('pages'):
@@ -991,6 +1104,8 @@ class Window(QMainWindow):
             self.store.mark_notified([e['id'] for e in batch])
 
     def tick(self):
+        if self.store.cleanup_trash():
+            self.render()
         self.flush_notifications()
         if self.credentials and not self.await_profile and not self.preview and now() >= self.next_due:
             self.refresh()
