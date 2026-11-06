@@ -10,7 +10,7 @@ from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
     QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
-    QFileDialog, QSystemTrayIcon, QMenu, QSplitter, QSlider, QListWidget, QListWidgetItem, QTimeEdit, QToolButton, QTabWidget, QTabBar, QWidgetAction)
+    QFileDialog, QSystemTrayIcon, QMenu, QSplitter, QSlider, QListWidget, QListWidgetItem, QTimeEdit, QToolButton, QTabWidget, QTabBar, QWidgetAction, QSizePolicy)
 from core import Store, Kaggle, DEFAULT, TOPICS, AUDIENCES, validate_profile, read_json_file, validate_credentials, assess, now, date, display_date, plain, slug
 from installation import data_directory, migrate_database
 from core import exclusion_details, EXCLUSION_LABELS, NOTIFY_KINDS, KST, trash_cutoff
@@ -60,6 +60,32 @@ def clear(layout):
             entry.widget().deleteLater()
         elif entry.layout():
             clear(entry.layout())
+
+class NounHeading(QLabel):
+    """Preserve the functional title while eliding an unusually long display name."""
+    def __init__(self):
+        super().__init__()
+        self.prefix, self.suffix = '', ''
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setObjectName('heading')
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
+    def set_title(self, prefix, suffix=''):
+        self.prefix, self.suffix = prefix, suffix
+        self.setToolTip(prefix + suffix)
+        self.setAccessibleName(prefix + suffix)
+        self.update_text()
+
+    def update_text(self):
+        available = max(0, self.width() - self.fontMetrics().horizontalAdvance(self.suffix))
+        visible = self.fontMetrics().elidedText(self.prefix, Qt.TextElideMode.ElideRight, available)
+        self.setText(visible + self.suffix)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_text()
+
 
 class CompetitionCard(QFrame):
     clicked = Signal()
@@ -478,7 +504,7 @@ class Window(QMainWindow):
             self.nav.append(b)
             side.addWidget(b)
         side.addStretch()
-        self.profile_summary = label('', 'muted', True)
+        self.profile_summary = label('', 'muted')
         self.profile_summary.setAlignment(Qt.AlignmentFlag.AlignCenter)
         side.addWidget(self.profile_summary)
         root.addWidget(sidebar)
@@ -546,6 +572,7 @@ class Window(QMainWindow):
             self.credentials = self.store.credentials()
         except RuntimeError:
             self.credentials = None
+        self.render()
         if not self.credentials:
             self.connect_account(first=True)
         else:
@@ -575,7 +602,6 @@ class Window(QMainWindow):
             b.setIcon(icon(self.nav_icons[i], '#0088b5' if i == index else '#627087', 25))
         self.pages.setCurrentIndex(0 if index <= 1 else index - 1)
         if index <= 1:
-            self.heading.setText('관심 대회' if index == 1 else '대회 탐색')
             self.render()
         elif index == 2:
             self.render_events()
@@ -587,7 +613,8 @@ class Window(QMainWindow):
         layout.setSpacing(14)
         top = QHBoxLayout()
         titles = QVBoxLayout()
-        self.heading = label('대회 탐색', 'heading')
+        self.heading = NounHeading()
+        self.heading.set_title('대회 탐색')
         titles.addWidget(self.heading)
         self.hero_text = label('', 'muted', True)
         titles.addWidget(self.hero_text)
@@ -787,13 +814,25 @@ class Window(QMainWindow):
         if not hasattr(self, 'cards'):
             return
         profile = self.store.profile()
-        self.profile_summary.setText(profile['name'])
+        if self.mode <= 1:
+            owner = ' '.join(profile['name'].split())
+            if owner == DEFAULT['name']:
+                owner = ''
+            if not owner:
+                owner = ' '.join((self.credentials or {}).get('username', '').split())
+            if self.mode == 1 and owner:
+                self.heading.set_title(owner, '의 관심 대회')
+            else:
+                self.heading.set_title('관심 대회' if self.mode == 1 else '대회 탐색')
+        self.profile_summary.setText(self.profile_summary.fontMetrics().elidedText(profile['name'], Qt.TextElideMode.ElideRight, 80))
+        self.profile_summary.setToolTip(profile['name'])
+        self.profile_summary.setAccessibleName(profile['name'])
         self.profile_pill.setText(f"{profile['gpu']} · {profile['vram']}GB")
         separate = profile['separate_education']
         self.collection_tabs.setVisible(separate)
         education_view = separate and self.collection_tabs.currentIndex() == 1
         self.sync_chips()
-        intro = '입문·연습 대회 목록' if education_view else '관심 분야·참가 조건 기준 대회 목록'
+        intro = '관심 등록 대회 목록' if self.mode == 1 else ('입문·연습 대회 목록' if education_view else '관심 분야·참가 조건 기준 대회 목록')
         self.hero_text.setText(('예시 데이터 화면 · ' if self.preview else '') + intro)
         self.hero_text.setToolTip(f"관심 분야 {len(profile['topics'])}개 · {profile['interval']}분마다 확인")
         deleted = self.store.trash_rows()
@@ -1197,7 +1236,9 @@ class Window(QMainWindow):
         hardware, h = card()
         h.addWidget(label('사용 환경', 'title'))
         fields = QGridLayout()
-        self.name_input = QLineEdit(p['name'])
+        self.name_input = QLineEdit('' if p['name'] == DEFAULT['name'] else p['name'])
+        self.name_input.setPlaceholderText('이름 또는 Kaggle 아이디 (선택)')
+        self.name_input.setToolTip('관심 화면 제목에 표시됩니다. 미입력 시 저장된 Kaggle 아이디를 사용하며, 아이디가 없으면 관심 대회로 표시합니다.')
         self.name_input.setMaxLength(100)
         self.skills_input = QLineEdit(p['skills'])
         self.skills_input.setMaxLength(250)
@@ -1206,7 +1247,7 @@ class Window(QMainWindow):
         self.vram_input = SliderInput('GPU VRAM', 0, 512, p['vram'], ' GB', slider_max=64,
                                      presets=[(8, '8GB'), (16, '16GB'), (24, '24GB'), (32, '32GB')],
                                      low_label='GPU 없음', high_label='64GB · 더 큰 용량은 직접 입력')
-        for n, (name, widget) in enumerate([('프로필 이름', self.name_input), ('보유 기술', self.skills_input), ('GPU 이름 (없으면 없음)', self.gpu_input), ('GPU VRAM', self.vram_input)]):
+        for n, (name, widget) in enumerate([('이름 / 표시명', self.name_input), ('보유 기술', self.skills_input), ('GPU 이름 (없으면 없음)', self.gpu_input), ('GPU VRAM', self.vram_input)]):
             fields.addWidget(label(name, 'muted'), n, 0)
             fields.addWidget(widget, n, 1)
         h.addLayout(fields)
@@ -1411,6 +1452,7 @@ class Window(QMainWindow):
         self.credentials = None
         self.connection_label.setText('연결이 해제되었습니다.')
         self.status.setText('Kaggle 연결 대기')
+        self.render()
 
     def autostart_enabled(self):
         if os.name != 'nt':
