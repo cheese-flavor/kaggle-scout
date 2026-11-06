@@ -742,13 +742,10 @@ class Window(QMainWindow):
         self.more_button.setAccessibleName('더보기')
         self.more_button.setToolTip('더보기')
         more_menu = QMenu(self.more_button)
-        more_menu.addAction(icon('bookmark'), '관심 등록 / 해제', self.star)
-        more_menu.addAction(icon('layers'), '참가 조건 확인', self.load_pages)
-        more_menu.addAction(icon('eye-off'), '숨기기 / 해제', self.hide_item)
-        more_menu.addAction(icon('trash'), '삭제', lambda: self.delete_competition(self.selected))
-        more_menu.addSeparator()
-        more_menu.addAction('요약 보기', lambda: self.detail_tabs.setCurrentIndex(0))
-        more_menu.addAction('전체 정보 보기', lambda: self.detail_tabs.setCurrentIndex(1))
+        self.more_rules_action = more_menu.addAction(icon('layers'), '참가 조건 확인', self.load_pages)
+        self.more_hide_action = more_menu.addAction(icon('eye-off'), '숨김 해제', self.hide_item)
+        self.more_summary_action = more_menu.addAction('요약 보기', lambda: self.detail_tabs.setCurrentIndex(0))
+        self.more_full_action = more_menu.addAction('전체 정보 보기', lambda: self.detail_tabs.setCurrentIndex(1))
         self.more_button.setMenu(more_menu)
         actions.addWidget(self.more_button)
         d.addLayout(actions)
@@ -778,14 +775,25 @@ class Window(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if hasattr(self, 'more_button'):
+        if hasattr(self, 'more_full_action'):
+            self.update_detail_actions()
+
+    def update_detail_actions(self):
+        if hasattr(self, 'more_full_action'):
             compact = self.height() < 760
-            self.star_button.setVisible(not compact)
-            self.delete_button.setVisible(not compact)
+            self.star_button.setVisible(True)
+            self.delete_button.setVisible(True)
+            for button in (self.star_button, self.delete_button):
+                button.setStyleSheet('padding:10px;' if compact else '')
             self.rules_button.setVisible(not compact)
-            self.more_button.setText('더보기' if compact else '')
-            self.more_button.setMinimumWidth(0 if compact else 44)
-            self.more_button.setMaximumWidth(16777215 if compact else 44)
+            for action in (self.more_rules_action, self.more_summary_action, self.more_full_action):
+                action.setVisible(compact)
+            row = self.selected_row()
+            legacy_hidden = bool(row and row['hidden'])
+            self.more_hide_action.setVisible(legacy_hidden)
+            self.more_button.setVisible(compact or legacy_hidden)
+            self.more_button.setText('')
+            self.more_button.setFixedWidth(44)
             self.detail_tabs.setVisible(not compact)
 
     def choose_chip(self, text):
@@ -951,18 +959,6 @@ class Window(QMainWindow):
                 badge.setProperty('tone', 'teal')
                 badge.setToolTip(v['education_reason'])
                 top.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
-            save = button('', lambda checked=False, ref=row['ref']: self.toggle_bookmark(ref), icon_name='bookmark-check' if row['starred'] else 'bookmark')
-            save.setObjectName('iconButton')
-            save.setFixedSize(36, 36)
-            save.setAccessibleName('관심 해제' if row['starred'] else '관심 등록')
-            save.setToolTip(save.accessibleName())
-            top.addWidget(save, 0, Qt.AlignmentFlag.AlignTop)
-            remove = button('', lambda checked=False, ref=row['ref']: self.delete_competition(ref), icon_name='trash')
-            remove.setObjectName('iconButton')
-            remove.setFixedSize(36, 36)
-            remove.setAccessibleName(title + ' 삭제')
-            remove.setToolTip('삭제 보관함으로 이동')
-            top.addWidget(remove, 0, Qt.AlignmentFlag.AlignTop)
             body.addLayout(top)
             desc = plain(item.get('description', ''))
             body.addWidget(label(desc[:110] + ('…' if len(desc) > 110 else ''), 'cardDescription', True))
@@ -1028,6 +1024,7 @@ class Window(QMainWindow):
             frame.style().polish(frame)
             frame.update()
         row = self.selected_row()
+        self.update_detail_actions()
         for b in (self.star_button, self.hide_button, self.delete_button, self.rules_button, self.original_button, self.more_button):
             b.setEnabled(row is not None)
         if not row:
