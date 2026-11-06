@@ -357,6 +357,7 @@ class Store:
     def cleanup_trash(self, at=None):
         stamp = (at or now()).astimezone(UTC).isoformat()
         with self.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
             refs = [r['ref'] for r in con.execute('SELECT ref FROM items WHERE trashed_at IS NOT NULL AND trash_until IS NOT NULL AND trash_until<=?', (stamp,))]
             for ref in refs:
                 con.execute('INSERT OR IGNORE INTO discarded_items VALUES(?,?)', (ref, stamp))
@@ -372,6 +373,7 @@ class Store:
     def trash(self, ref, at=None):
         at = at or now()
         with self.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
             row = con.execute('SELECT * FROM items WHERE ref=? AND trashed_at IS NULL', (ref,)).fetchone()
             if row is None:
                 return False
@@ -401,6 +403,7 @@ class Store:
         first = not self.get('initialized', False)
         notices = []
         with self.connect() as con:
+            con.execute('BEGIN IMMEDIATE')
             for item in items:
                 ref = slug(item)
                 if con.execute('SELECT 1 FROM discarded_items WHERE ref=?', (ref,)).fetchone():

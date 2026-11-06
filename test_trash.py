@@ -3,6 +3,8 @@ import sqlite3
 from pathlib import Path
 import tempfile
 import unittest
+import threading
+from contextlib import contextmanager
 from unittest.mock import patch
 from datetime import timedelta
 from core import DEFAULT, Store, date, trash_cutoff
@@ -115,3 +117,54 @@ class TrashTests(unittest.TestCase):
         row = migrated.rows()[0]
         self.assertEqual((row['body'], row['starred'], row['hidden']), ('{}', 1, 1))
         self.assertIsNone(row['trashed_at'])
+
+    def test_sync_and_expiry_cannot_resurrect_a_deleted_item(self):
+        value = item(deadline=(AT + timedelta(days=2)).isoformat())
+        self.store.sync([value], self.profile, AT)
+        self.store.trash('example', AT)
+        expired = AT + timedelta(days=3)
+        ready, release, purged = threading.Event(), threading.Event(), threading.Event()
+        errors = []
+        original_connect = self.store.connect
+
+        @contextmanager
+        def traced_connect():
+            with original_connect() as con:
+                def trace(sql):
+                    if threading.current_thread().name == 'sync-race' and sql.startswith('SELECT * FROM items WHERE ref='):
+                        ready.set()
+                        release.wait(3)
+                con.set_trace_callback(trace)
+                yield con
+
+        def sync():
+            try:
+                self.store.sync([{**value, 'deadline': (expired + timedelta(days=30)).isoformat()}], self.profile, expired)
+            except Exception as error:
+                errors.append(error)
+
+        def purge():
+            try:
+                self.store.cleanup_trash(expired)
+            except Exception as error:
+                errors.append(error)
+            finally:
+                purged.set()
+
+        with patch.object(self.store, 'connect', traced_connect):
+            worker = threading.Thread(target=sync, name='sync-race')
+            cleaner = threading.Thread(target=purge)
+            worker.start()
+            try:
+                self.assertTrue(ready.wait(3))
+                cleaner.start()
+                purged.wait(.2)
+            finally:
+                release.set()
+                worker.join(5)
+                if cleaner.ident is not None:
+                    cleaner.join(5)
+        self.assertFalse(worker.is_alive())
+        self.assertFalse(cleaner.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(self.store.rows(), [])
