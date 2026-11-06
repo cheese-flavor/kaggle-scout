@@ -71,3 +71,11 @@ All eight semantic ink/surface pairs were calculated at approximately 5.30–6.2
 85 tests pass, including a new tray interaction check that opens the window, calls quit, and does not refresh. Notification target/time/queue semantics are unchanged; the settings now explain new recommendations versus bookmarked changes/deadlines. Actual Windows notification delivery, another display's DPI and assistive technologies remain outside this validation scope.
 
 v0.8.0 packaged verification: clean build starts, renders and exits normally with isolated preview data. The packaged empty state was inspected. After the user closed v0.7.0, local v0.8.0 installation completed. The installed executable also renders and exits normally with isolated data. Desktop and Start menu shortcuts and executable metadata resolve to 0.8.0; user DB existence and SHA256 remain unchanged after installation.
+
+## v0.8.1 · A single location for competition actions
+
+Current fixture captures: `docs/dashboard-v081.png`, `docs/bookmarks-v081.png` (1180 × 820), and `docs/education-small-v081.png` (960 × 680). List bookmark/delete buttons are removed. Summary and full-information share the existing detail footer actions, and the same actions remain directly visible at the minimum size. More contains information/rules actions at compact size; duplicate bookmark/delete menu entries are removed. Legacy hidden entries still expose an unhide action.
+
+The first minimum-size pass clipped the bookmark label; reducing horizontal padding in the compact footer resolved it. The final 960 × 680 capture was opened and inspected with both labels readable and the primary action unobstructed. Normal discovery and bookmark captures were also inspected. The existing 85 regression checks pass, including compact information switching and bookmark/deletion/restore behavior. No new screenshot-only test was added for this layout change.
+
+v0.8.1 direct interaction check: no QPushButton remains in list cards; the common footer toggles bookmarks from summary and full information and deletes into trash at compact size. Clean build and installed executable both render and exit normally in isolated preview data. Shortcuts and metadata resolve to 0.8.1; existing user DB existence and SHA256 remain unchanged after installation.

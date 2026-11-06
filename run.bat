@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
-if exist "%LOCALAPPDATA%\Programs\KaggleScout\versions\0.8.0\KaggleScout.exe" (
-  start "" "%LOCALAPPDATA%\Programs\KaggleScout\versions\0.8.0\KaggleScout.exe"
+if exist "%LOCALAPPDATA%\Programs\KaggleScout\versions\0.8.1\KaggleScout.exe" (
+  start "" "%LOCALAPPDATA%\Programs\KaggleScout\versions\0.8.1\KaggleScout.exe"
   exit /b
 )
 if exist "dist\KaggleScout\KaggleScout.exe" (
