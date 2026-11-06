@@ -1202,9 +1202,9 @@ class Window(QMainWindow):
         box = QVBoxLayout(page)
         box.setContentsMargins(32, 32, 32, 32)
         box.addWidget(label('알림 기록', 'heading'))
-        box.addWidget(label('새 추천 · 관심 대회 정보 변경 · 마감 7일 / 3일 / 1일 전', 'muted'))
+        box.addWidget(label('추천 조건에 맞는 새 대회 · 관심 대회의 변경·마감 기록', 'muted', True))
         self.events = SafeTextBrowser()
-        self.events.document().setDefaultStyleSheet('body {font-family:Pretendard; font-size:14px;} h3 {font-size:17px; font-weight:600;}')
+        self.events.document().setDefaultStyleSheet('body {font-family:Pretendard; font-size:16px;} h3 {font-size:17px; font-weight:600;}')
         box.addWidget(self.events)
         self.pages.addWidget(page)
 
@@ -1212,7 +1212,12 @@ class Window(QMainWindow):
         with self.store.connect() as con:
             rows = con.execute('SELECT * FROM events ORDER BY id DESC LIMIT 300').fetchall()
         states = {'pending': '시간대·표시 대기', 'sent': 'PC 알림 표시 요청됨', 'skipped': '설정 또는 현재 상태로 PC 알림 생략', 'legacy': '이전 기록'}
-        self.events.setHtml(''.join('<h3>' + html.escape(r['kind']) + '</h3><p>' + html.escape(r['message']) + '</p><p style="color:#6c7d90">' + display_date(r['created']) + ' · ' + states.get(r['delivery'], '기록됨') + '</p><hr>' for r in rows) or '<h3>아직 알림이 없습니다.</h3><p>첫 수집은 목록으로 보여주고, 이후 새 추천과 관심 대회 변경 사항을 기록합니다.</p>')
+        chunks = []
+        tones = {'새 추천': 'blue', '정보 변경': 'violet', '마감 임박': 'amber'}
+        for row in rows:
+            ink = TONES[tones.get(row['kind'], 'slate')]['ink']
+            chunks.append('<h3 style="color:' + ink + '">' + html.escape(row['kind']) + '</h3><p>' + html.escape(row['message']) + '</p><p style="color:#6c7d90">' + display_date(row['created']) + ' · ' + states.get(row['delivery'], '기록됨') + '</p><hr>')
+        self.events.setHtml(''.join(chunks) or '<h3>알림 기록 없음</h3><p>새 대회는 추천 조건 기준, 정보 변경·마감은 관심 등록 대회 기준으로 기록합니다. 첫 수집 목록은 신규 알림으로 보내지 않습니다.</p>')
 
     def build_settings(self):
         scroll = QScrollArea()
@@ -1331,9 +1336,17 @@ class Window(QMainWindow):
         notification_card, nc = card()
         nc.addWidget(label('알림 설정', 'title'))
         nc.addWidget(self.notifications)
+        nc.addWidget(label('새 대회: 추천 조건 기준\n정보 변경·마감: 관심 등록 대회 기준', 'muted', True))
         self.notify_kind_checks = {}
+        notification_help = {
+            '새 추천': '관심 등록과 관계없이 내 추천 조건에 맞는 새 대회 발견. 교육용 신규 알림은 수집·보기 설정에서 별도 선택합니다.',
+            '정보 변경': '관심 등록한 대회의 주요 설명·일정·보상 등 변경.',
+            '마감 임박': '관심 대회의 참가·팀 구성·제출 마감이 7·3·1일 이내로 진입.',
+        }
         for kind, text in NOTIFY_KINDS.items():
-            chk = QCheckBox(text)
+            chk = QCheckBox('새 추천 대회' if kind == '새 추천' else text)
+            chk.setProperty('tone', {'새 추천': 'blue', '정보 변경': 'violet', '마감 임박': 'amber'}[kind])
+            chk.setToolTip(notification_help[kind])
             chk.setChecked(kind in p['notify_kinds'])
             self.notify_kind_checks[kind] = chk
             nc.addWidget(chk)
