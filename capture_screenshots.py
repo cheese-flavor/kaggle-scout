@@ -6,22 +6,21 @@ import tempfile
 from datetime import timedelta
 from PySide6.QtCore import QTime
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtTest import QTest
-from app import Window, TrashDialog, ASSETS, STYLE
+from app import Window, TrashDialog
+from ui_theme import apply_theme
 from core import Store, DEFAULT, now
 
 
-def capture(version):
+def capture(version, output_dir=None):
     if not re.fullmatch(r'\d+\.\d+\.\d+', version):
         raise ValueError('Expected a semantic version')
     root = Path(__file__).resolve().parent
+    output_dir = Path(output_dir) if output_dir else root / 'docs'
+    output_dir.mkdir(parents=True, exist_ok=True)
     suffix = 'v' + version.replace('.', '')
     app = QApplication.instance() or QApplication([])
-    for font in ASSETS.glob('Pretendard-*.otf'):
-        QFontDatabase.addApplicationFont(str(font))
-    app.setFont(QFont('Pretendard', 11))
-    app.setStyleSheet(STYLE)
+    apply_theme(app)
     values = [
         ('데이터 예측 챌린지', 'Python과 SQL로 시작하는 데이터 분석', 'Playground', 'Tabular regression'),
         ('언어 모델 추론 챌린지', 'LLM을 활용한 자연어 추론 문제 해결', 'Research', 'NLP language model'),
@@ -48,14 +47,17 @@ def capture(version):
 
         def shot(name, target=None):
             QTest.qWait(180)
-            path = root / 'docs' / f'{name}-{suffix}.png'
+            path = output_dir / f'{name}-{suffix}.png'
             if not (target or window).grab().save(str(path)):
                 raise RuntimeError('Screenshot save failed')
             outputs.append(path)
 
         try:
             shot('dashboard')
-            window.detail.verticalScrollBar().setValue(220)
+            document = window.detail.document()
+            schedule = document.find('대회 일정').block()
+            schedule_top = document.documentLayout().blockBoundingRect(schedule).top()
+            window.detail.verticalScrollBar().setValue(max(0, round(schedule_top) - 8))
             shot('detail-information')
             window.detail.verticalScrollBar().setValue(0)
             window.collection_tabs.setCurrentIndex(1)

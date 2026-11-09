@@ -95,3 +95,9 @@ v0.9.0 packaged verification: clean build starts/renders/exits successfully with
 Inspected synthetic discovery at 1180 × 820, education at 960 × 680, grouped history, and notification settings with an overnight window. The compact list shows title, topic, deadline and status. Detail puts final submission and participation ahead of the description. History groups events by competition, preserves legacy entries, and displays previous and changed values when recorded. The schedule preview distinguishes saved and edited values.
 
 All 95 tests pass, including tray and exact-ref navigation, deadline sorting, independent bookmark filters, change context and history links. The clean build and installed executable both start, render and exit with isolated data. Desktop and Start menu shortcuts resolve to 0.10.0. The existing user database has the same presence and SHA256 before and after installation. The gallery contains 68 fixture images, with prior sources verified byte for byte.
+
+## v0.10.1 · Reading spacing
+
+Fresh v0.10.0 fixture captures showed tight date and status text, dense alert rows, and notification time controls spaced far apart. The v0.10.1 captures use the same fixture workflow. Inspected discovery and scrolled details at 1180 × 820, education at 960 × 680, grouped alert history, and profile and notification settings. The minimum window retains the deadline, participation state, and first description line in the top detail view. Wider rows mean more vertical scrolling through the full detail at minimum height.
+
+All 96 regression tests pass. The new minimum-window test covers long Korean and English text and unbroken tokens in details and history, with scrolling and the primary action available. The gallery retains 80 source-verified fixture images.

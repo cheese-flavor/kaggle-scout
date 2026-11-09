@@ -95,5 +95,14 @@
       "관심 대회는 별도 검색·분야·정렬 상태를 기억하고 마감된 대회도 확인할 수 있습니다. [관심 화면](v0.10.0/bookmarks-v0100.png)",
       "알림은 대회별로 묶고 새 변경 기록은 이전 값과 새 값을 표시합니다. [알림 기록](v0.10.0/notification-history-v0100.png) · [시간 설정](v0.10.0/notifications-v0100.png)"
     ]
+  },
+  {
+    "version": "v0.10.1",
+    "image": "v0.10.1/dashboard-v0101.png",
+    "changes": [
+      "목록은 제목과 분야·날짜·D-day 사이 여백을 늘렸습니다. 상세 영역을 넓히고 일정과 참가·제출 정보의 행간을 조정했습니다. [상세 본문](v0.10.1/detail-information-v0101.png) · [최소 창](v0.10.1/education-small-v0101.png)",
+      "알림 종류, 시각·표시 상태, 변경 값을 나눠 읽을 수 있습니다. [알림 기록](v0.10.1/notification-history-v0101.png)",
+      "알림 설정에서 종류와 수신 시간을 분리하고 관련 안내를 짧게 나눴습니다. [알림 설정](v0.10.1/notifications-v0101.png)"
+    ]
   }
 ]

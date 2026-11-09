@@ -4,6 +4,16 @@
 
 최신 변경부터 보여줍니다. 각 버전의 전체 원본은 아래 **원본 화면 보관함**에 그대로 남깁니다.
 
+## v0.10.0 → v0.10.1
+
+| 이전 · v0.10.0 | 이후 · v0.10.1 |
+|---|---|
+| [![이전 화면](v0.10.0/dashboard-v0100.png)](v0.10.0/dashboard-v0100.png) | [![이후 화면](v0.10.1/dashboard-v0101.png)](v0.10.1/dashboard-v0101.png) |
+
+- 목록은 제목과 분야·날짜·D-day 사이 여백을 늘렸습니다. 상세 영역을 넓히고 일정과 참가·제출 정보의 행간을 조정했습니다. [상세 본문](v0.10.1/detail-information-v0101.png) · [최소 창](v0.10.1/education-small-v0101.png)
+- 알림 종류, 시각·표시 상태, 변경 값을 나눠 읽을 수 있습니다. [알림 기록](v0.10.1/notification-history-v0101.png)
+- 알림 설정에서 종류와 수신 시간을 분리하고 관련 안내를 짧게 나눴습니다. [알림 설정](v0.10.1/notifications-v0101.png)
+
 ## v0.9.0 → v0.10.0
 
 | 이전 · v0.9.0 | 이후 · v0.10.0 |
@@ -298,6 +308,35 @@
 ![v0.10.0 trash-v0100](v0.10.0/trash-v0100.png)
 
 ![v0.10.0 tray-menu-v0100](v0.10.0/tray-menu-v0100.png)
+
+</details>
+
+<details>
+<summary>v0.10.1 전체 화면</summary>
+
+![v0.10.1 bookmarks-v0101](v0.10.1/bookmarks-v0101.png)
+
+![v0.10.1 collection-settings-v0101](v0.10.1/collection-settings-v0101.png)
+
+![v0.10.1 dashboard-v0101](v0.10.1/dashboard-v0101.png)
+
+![v0.10.1 deadline-colors-v0101](v0.10.1/deadline-colors-v0101.png)
+
+![v0.10.1 detail-information-v0101](v0.10.1/detail-information-v0101.png)
+
+![v0.10.1 education-small-v0101](v0.10.1/education-small-v0101.png)
+
+![v0.10.1 education-v0101](v0.10.1/education-v0101.png)
+
+![v0.10.1 notification-history-v0101](v0.10.1/notification-history-v0101.png)
+
+![v0.10.1 notifications-v0101](v0.10.1/notifications-v0101.png)
+
+![v0.10.1 profile-settings-v0101](v0.10.1/profile-settings-v0101.png)
+
+![v0.10.1 trash-v0101](v0.10.1/trash-v0101.png)
+
+![v0.10.1 tray-menu-v0101](v0.10.1/tray-menu-v0101.png)
 
 </details>
 
