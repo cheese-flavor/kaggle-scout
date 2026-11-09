@@ -4,6 +4,16 @@
 
 최신 변경부터 보여줍니다. 각 버전의 전체 원본은 아래 **원본 화면 보관함**에 그대로 남깁니다.
 
+## v0.9.0 → v0.10.0
+
+| 이전 · v0.9.0 | 이후 · v0.10.0 |
+|---|---|
+| [![이전 화면](v0.9.0/dashboard-v090.png)](v0.9.0/dashboard-v090.png) | [![이후 화면](v0.10.0/dashboard-v0100.png)](v0.10.0/dashboard-v0100.png) |
+
+- 탐색 목록은 대회명·분야·마감 중심으로 압축했습니다. 상세 상단에서는 제출 마감과 참가 상태를 먼저 읽습니다. [상세 본문](v0.10.0/detail-information-v0100.png) · [작은 창](v0.10.0/education-small-v0100.png)
+- 관심 대회는 별도 검색·분야·정렬 상태를 기억하고 마감된 대회도 확인할 수 있습니다. [관심 화면](v0.10.0/bookmarks-v0100.png)
+- 알림은 대회별로 묶고 새 변경 기록은 이전 값과 새 값을 표시합니다. [알림 기록](v0.10.0/notification-history-v0100.png) · [시간 설정](v0.10.0/notifications-v0100.png)
+
 ## v0.8.1 → v0.9.0
 
 | 이전 · v0.8.1 | 이후 · v0.9.0 |
@@ -259,6 +269,35 @@
 ![v0.9.0 trash-v090](v0.9.0/trash-v090.png)
 
 ![v0.9.0 tray-menu-v090](v0.9.0/tray-menu-v090.png)
+
+</details>
+
+<details>
+<summary>v0.10.0 전체 화면</summary>
+
+![v0.10.0 bookmarks-v0100](v0.10.0/bookmarks-v0100.png)
+
+![v0.10.0 collection-settings-v0100](v0.10.0/collection-settings-v0100.png)
+
+![v0.10.0 dashboard-v0100](v0.10.0/dashboard-v0100.png)
+
+![v0.10.0 deadline-colors-v0100](v0.10.0/deadline-colors-v0100.png)
+
+![v0.10.0 detail-information-v0100](v0.10.0/detail-information-v0100.png)
+
+![v0.10.0 education-small-v0100](v0.10.0/education-small-v0100.png)
+
+![v0.10.0 education-v0100](v0.10.0/education-v0100.png)
+
+![v0.10.0 notification-history-v0100](v0.10.0/notification-history-v0100.png)
+
+![v0.10.0 notifications-v0100](v0.10.0/notifications-v0100.png)
+
+![v0.10.0 profile-settings-v0100](v0.10.0/profile-settings-v0100.png)
+
+![v0.10.0 trash-v0100](v0.10.0/trash-v0100.png)
+
+![v0.10.0 tray-menu-v0100](v0.10.0/tray-menu-v0100.png)
 
 </details>
 

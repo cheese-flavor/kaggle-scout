@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import tempfile
 from datetime import timedelta
+from PySide6.QtCore import QTime
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtTest import QTest
@@ -75,6 +76,13 @@ def capture(version):
                 shot('trash', dialog)
             finally:
                 dialog.close()
+            profile = store.profile()
+            updated = {**items[0], 'deadline': (now() + timedelta(days=5)).isoformat(), 'reward': '가상 예시 · 참가 증명서'}
+            store.sync([updated, {**items[1], 'ref': 'fixture-new', 'title': '새 언어 모델 챌린지'}], profile)
+            batch = store.notification_batch(profile)
+            store.mark_notified([event['id'] for event in batch if event['kind'] != '마감 임박'])
+            window.navigate(2)
+            shot('notification-history')
             window.navigate(3)
             window.resize(1180, 820)
             window.settings_tabs.setCurrentIndex(2)
@@ -83,6 +91,9 @@ def capture(version):
             window.settings_scroll.verticalScrollBar().setValue(max(0, window.name_input.parentWidget().y() - 8))
             shot('profile-settings')
             window.settings_tabs.setCurrentIndex(3)
+            window.notify_schedule.setCurrentIndex(1)
+            window.notify_start.setTime(QTime(22, 0))
+            window.notify_end.setTime(QTime(8, 0))
             shot('notifications')
             menu = window.tray.contextMenu()
             menu.popup(window.pos())
