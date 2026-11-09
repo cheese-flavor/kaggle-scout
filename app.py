@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from datetime import timedelta
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QLockFile, QUrl, QTime, QSize, QSignalBlocker
-from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction, QKeyEvent, QTextOption
+from PySide6.QtGui import QIcon, QDesktopServices, QAction, QKeyEvent, QTextOption
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
     QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
     QLineEdit, QComboBox, QSpinBox, QCheckBox, QTextBrowser, QMessageBox, QDialog,
@@ -16,7 +16,7 @@ from core import exclusion_details, EXCLUSION_LABELS, NOTIFY_KINDS, KST, trash_c
 
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
-from ui_theme import STYLE, icon, TONES, TOPIC_TONES, NAV_TONES, set_tone
+from ui_theme import STYLE, apply_theme, icon, TONES, TOPIC_TONES, NAV_TONES, set_tone
 from detail_view import DOCUMENT_STYLE, detail_document
 from notification_view import HISTORY_STYLE, history_document
 
@@ -161,6 +161,7 @@ class SafeTextBrowser(QTextBrowser):
         super().__init__()
         self.setOpenLinks(False)
         self.setOpenExternalLinks(False)
+        self.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
 
     def loadResource(self, resource_type, name):
         # Display only escaped text supplied by the app; never load local/remote resources.
@@ -658,9 +659,10 @@ class Window(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(28, 24, 24, 16)
-        layout.setSpacing(11)
+        layout.setSpacing(12)
         top = QHBoxLayout()
         titles = QVBoxLayout()
+        titles.setSpacing(5)
         self.heading = NounHeading()
         self.heading.set_title('대회 탐색')
         titles.addWidget(self.heading)
@@ -729,15 +731,16 @@ class Window(QMainWindow):
         contents = QWidget()
         self.cards = QVBoxLayout(contents)
         self.cards.setContentsMargins(0, 0, 8, 0)
-        self.cards.setSpacing(8)
+        self.cards.setSpacing(10)
         scroll.setWidget(contents)
         split.addWidget(scroll)
         detail, d = card()
         detail.setMinimumWidth(290)
-        d.setContentsMargins(18, 16, 18, 16)
+        d.setContentsMargins(18, 18, 18, 16)
+        d.setSpacing(12)
         self.detail = SafeTextBrowser()
+        self.detail.document().setDocumentMargin(4)
         self.detail.document().setDefaultStyleSheet(DOCUMENT_STYLE)
-        self.detail.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
         self.detail.setMinimumHeight(0)
         d.addWidget(self.detail, 1)
         links = QHBoxLayout()
@@ -765,7 +768,7 @@ class Window(QMainWindow):
         actions.addWidget(self.more_button)
         d.addLayout(actions)
         split.addWidget(detail)
-        split.setSizes([640, 380])
+        split.setSizes([600, 420])
         layout.addWidget(split, 1)
         paging = QHBoxLayout()
         self.page_label = label('1 / 1 페이지', 'muted')
@@ -967,14 +970,14 @@ class Window(QMainWindow):
             panel.setProperty('context', 'bookmark' if self.mode == 1 else 'education' if education_view else 'general')
             self.card_frames[row['ref']] = panel
             panel.clicked.connect(lambda ref=row['ref']: self.select(ref))
-            panel.setMinimumHeight(108)
+            panel.setMinimumHeight(112)
             p = QHBoxLayout(panel)
-            p.setContentsMargins(14, 12, 14, 12)
-            p.setSpacing(12)
+            p.setContentsMargins(16, 13, 16, 13)
+            p.setSpacing(14)
             primary_topic, topic_icon, color, background = topic_visual(v['topics'])
             p.addWidget(icon_tile(topic_icon, color, background), 0, Qt.AlignmentFlag.AlignVCenter)
             body = QVBoxLayout()
-            body.setSpacing(6)
+            body.setSpacing(8)
             top = QHBoxLayout()
             name = label(title, 'listTitle', True)
             top.addWidget(name, 1)
@@ -985,14 +988,18 @@ class Window(QMainWindow):
                 top.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
             body.addLayout(top)
             meta = QHBoxLayout()
+            meta.setSpacing(9)
             tag = label(primary_topic, 'chip')
             tag.setStyleSheet(f'background:{background};color:{color};border-radius:11px;padding:5px 9px;font-size:14px;')
             meta.addWidget(tag)
+            calendar = QHBoxLayout()
+            calendar.setSpacing(5)
             cal = QLabel()
             cal.setPixmap(icon('calendar-days', size=18).pixmap(18, 18))
-            meta.addWidget(cal)
+            calendar.addWidget(cal)
             end = date(item.get('deadline'))
-            meta.addWidget(label(end.astimezone(KST).strftime('%Y.%m.%d') if end else '마감 확인', 'cardDate'))
+            calendar.addWidget(label(end.astimezone(KST).strftime('%Y.%m.%d') if end else '마감 확인', 'cardDate'))
+            meta.addLayout(calendar)
             if end:
                 long_practice = v['education'] and end > now() + timedelta(days=365)
                 deadline = label('장기 운영' if long_practice else deadline_badge(item.get('deadline')), 'deadline')
@@ -1242,6 +1249,7 @@ class Window(QMainWindow):
         interests, i = card()
         i.addWidget(label('관심 분야', 'title'))
         grid = QGridLayout()
+        grid.setSpacing(10)
         p = self.store.profile()
         self.topic_checks = {}
         for n, name in enumerate(TOPICS):
@@ -1257,6 +1265,7 @@ class Window(QMainWindow):
         pa.addWidget(label('참가 대상', 'title'))
         self.audience_checks = {}
         audience_grid = QGridLayout()
+        audience_grid.setSpacing(10)
         for n, (key, text) in enumerate(AUDIENCES.items()):
             chk = QCheckBox(text)
             chk.setObjectName('choice')
@@ -1272,6 +1281,8 @@ class Window(QMainWindow):
         hardware, h = card()
         h.addWidget(label('사용 환경', 'title'))
         fields = QGridLayout()
+        fields.setHorizontalSpacing(16)
+        fields.setVerticalSpacing(10)
         self.name_input = QLineEdit('' if p['name'] == DEFAULT['name'] else p['name'])
         self.name_input.setPlaceholderText('이름 또는 Kaggle 아이디 (선택)')
         self.name_input.setToolTip('관심 화면 제목에 표시됩니다. 미입력 시 저장된 Kaggle 아이디를 사용하며, 아이디가 없으면 관심 대회로 표시합니다.')
@@ -1334,13 +1345,14 @@ class Window(QMainWindow):
         for key, chk in [('separate_education', self.separate_education), ('education_playground', self.education_playground), ('notify_education', self.notify_education)]:
             chk.setChecked(p[key])
             ec.addWidget(chk)
-        ec.addWidget(label('Getting Started 등 입문 카테고리를 기준으로 나눕니다. 마감이 멀다는 이유만으로 교육용으로 판단하지 않아요.', 'muted', True))
-        ec.addWidget(label('교육용도 계속 수집·보관하며 관심 등록이 가능합니다. 관심 대회의 변경·마감 알림은 기존 설정을 따릅니다.', 'muted', True))
+        ec.addWidget(label('Getting Started 등 입문 카테고리를 기준으로 분류합니다.', 'muted', True))
+        ec.addWidget(label('관심 등록한 교육용 대회의 변경·마감은 알림 설정을 따릅니다.', 'muted', True))
         box.addWidget(education_card)
         notification_card, nc = card()
         nc.addWidget(label('알림 설정', 'title'))
         nc.addWidget(self.notifications)
-        nc.addWidget(label('새 대회: 추천 조건 기준\n정보 변경·마감: 관심 등록 대회 기준', 'muted', True))
+        nc.addSpacing(4)
+        nc.addWidget(label('알림 종류', 'sectionTitle'))
         self.notify_kind_checks = {}
         notification_help = {
             '새 추천': '관심 등록과 관계없이 내 추천 조건에 맞는 새 대회 발견. 교육용 신규 알림은 수집·보기 설정에서 별도 선택합니다.',
@@ -1354,7 +1366,11 @@ class Window(QMainWindow):
             chk.setChecked(kind in p['notify_kinds'])
             self.notify_kind_checks[kind] = chk
             nc.addWidget(chk)
+        nc.addWidget(label('새 대회는 추천 조건, 변경·마감은 관심 등록 기준으로 기록합니다.', 'muted', True))
+        nc.addSpacing(8)
+        nc.addWidget(label('수신 시간', 'sectionTitle'))
         schedule_row = QHBoxLayout()
+        schedule_row.setSpacing(10)
         self.notify_schedule = QComboBox()
         self.notify_schedule.addItem('언제든 받기', 'always')
         self.notify_schedule.addItem('지정 시간에만 받기', 'window')
@@ -1364,13 +1380,19 @@ class Window(QMainWindow):
         self.notify_end = QTimeEdit(QTime.fromString(p['notify_end'], 'HH:mm'))
         for widget, name in [(self.notify_start, '알림 시작 시간'), (self.notify_end, '알림 종료 시간')]:
             widget.setDisplayFormat('HH:mm')
+            widget.setMinimumWidth(92)
             widget.setAccessibleName(name + ' KST')
         schedule_row.addWidget(self.notify_start)
         schedule_row.addWidget(label('~'))
         schedule_row.addWidget(self.notify_end)
         schedule_row.addWidget(label('KST', 'muted'))
+        schedule_row.addStretch()
         nc.addLayout(schedule_row)
-        nc.addWidget(label('시간 밖에서는 보관하고, 다음 허용 시간에 묶어 보여줍니다. 앱이 실행 중이어야 합니다. 꺼둔 종류는 기록만 남깁니다.', 'muted', True))
+        notes = QVBoxLayout()
+        notes.setSpacing(7)
+        notes.addWidget(label('지정 시간 밖의 알림은 보관했다가 다음 수신 시간에 묶어 표시합니다.', 'muted', True))
+        notes.addWidget(label('앱이 실행 중일 때만 표시합니다. 꺼둔 종류는 기록에 남습니다.', 'muted', True))
+        nc.addLayout(notes)
         box.addWidget(notification_card)
         scroll.setWidget(page)
         container = QWidget()
@@ -1391,7 +1413,7 @@ class Window(QMainWindow):
             tab_page = QWidget()
             tab_box = QVBoxLayout(tab_page)
             tab_box.setContentsMargins(2, 14, 8, 16)
-            tab_box.setSpacing(16)
+            tab_box.setSpacing(20)
             for panel in panels:
                 box.removeWidget(panel)
                 tab_box.addWidget(panel)
@@ -1619,12 +1641,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName('Kaggle Scout')
     app.setOrganizationName('PersonalTools')
-    for font in ASSETS.glob('Pretendard-*.otf'):
-        QFontDatabase.addApplicationFont(str(font))
-    font = QFont('Pretendard', 11)
-    font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
-    app.setFont(font)
-    app.setStyleSheet(STYLE)
+    apply_theme(app)
     preview = '--preview' in sys.argv
     folder = data_directory(ROOT, frozen=getattr(sys, 'frozen', False),
                             portable='--portable' in sys.argv, preview=preview)

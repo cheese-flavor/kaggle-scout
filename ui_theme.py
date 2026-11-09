@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 from functools import lru_cache
 from PySide6.QtCore import Qt, QByteArray
-from PySide6.QtGui import QIcon, QPixmap, QPainter
+from PySide6.QtGui import QFont, QFontDatabase, QIcon, QPixmap, QPainter
 from PySide6.QtSvg import QSvgRenderer
 
 ASSETS = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'assets'
@@ -64,6 +64,7 @@ QLabel#muted {color:#627086; font-size:16px;}
 QLabel#eyebrow {color:#0386af; font-size:12px; font-weight:600;}
 QLabel#heading {font-size:36px; font-weight:700; color:#12223b;}
 QLabel#title {font-size:24px; font-weight:600;}
+QLabel#sectionTitle {font-size:17px; font-weight:600; color:#172d43;}
 QLabel#brand {font-size:15px; font-weight:700;}
 QLabel#chip {background:#e6f8ff; color:#027ca4; border-radius:12px; padding:5px 10px; font-size:12px; font-weight:600;}
 QLabel#listTitle {font-size:20px; font-weight:600;}
@@ -153,3 +154,13 @@ QMenu#trayMenu {font-size:13px;padding:4px;border-radius:8px;}
 QMenu#trayMenu::item {padding:6px 14px;border-radius:5px;}
 QMenu#trayMenu::item:selected {background:#e9f1ff;color:#2558a4;}
 '''
+
+
+def apply_theme(app):
+    for font_file in ASSETS.glob('Pretendard-*.otf'):
+        QFontDatabase.addApplicationFont(str(font_file))
+    font = QFont('Pretendard', 11)
+    font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+    font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.25)
+    app.setFont(font)
+    app.setStyleSheet(STYLE)

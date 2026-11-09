@@ -1,7 +1,9 @@
+from datetime import timedelta
 import unittest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 import test_ui as ui
+from core import now
 from test_core import item
 
 class DesignInteractionTests(unittest.TestCase):
@@ -48,3 +50,29 @@ class DesignInteractionTests(unittest.TestCase):
         QTest.qWait(50)
         self.assertFalse(self.window.more_button.isHidden())
         self.assertTrue(self.window.rules_button.isHidden())
+
+
+    def test_long_competition_and_alert_text_wrap_at_minimum_window(self):
+        profile = self.store.profile()
+        value = item('long',
+                     title='한국어와 English가 섞인 긴 대회 제목 ' * 3,
+                     description='Python web development application을 비교하는 대회입니다. ' * 5,
+                     deadline=(now() + timedelta(hours=30)).isoformat(),
+                     pages=('LongRuleToken' * 150) + ' 규칙 끝')
+        self.store.sync([value], profile)
+        self.store.flag('long', 'starred', True)
+        self.store.sync([{**value, 'reward': 'LongRewardToken' * 10}], profile)
+        self.window.resize(960, 680)
+        self.window.show()
+        self.window.render()
+        QTest.qWait(50)
+        self.assertEqual(self.window.size().toTuple(), (960, 680))
+        self.assertEqual(self.window.list_scroll.horizontalScrollBar().maximum(), 0)
+        self.assertEqual(self.window.detail.horizontalScrollBar().maximum(), 0)
+        self.assertGreater(self.window.detail.verticalScrollBar().maximum(), 0)
+        self.assertIn('규칙 끝', self.window.detail.toPlainText())
+        self.assertTrue(self.window.original_button.isVisible())
+        self.window.navigate(2)
+        QTest.qWait(50)
+        self.assertEqual(self.window.events.horizontalScrollBar().maximum(), 0)
+        self.assertIn('LongRewardToken' * 10, self.window.events.toPlainText())
