@@ -21,7 +21,7 @@ class TrashUITests(unittest.TestCase):
         self.seed()
         self.window.delete_competition('a')
         self.assertEqual(self.window.current_page_refs, [])
-        self.window.choose_chip('전체')
+        self.window.show_excluded.setChecked(True)
         self.window.show_hidden.setChecked(True)
         self.assertEqual(self.window.current_page_refs, [])
         self.assertIn('(1)', self.window.trash_button.text())

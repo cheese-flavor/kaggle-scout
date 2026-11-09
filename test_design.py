@@ -8,14 +8,17 @@ class DesignInteractionTests(unittest.TestCase):
     setUp = ui.UITests.setUp
     tearDown = ui.UITests.tearDown
 
-    def test_topic_chips_and_all_competitions(self):
+    def test_topic_and_exclusion_filters_are_independent(self):
         self.store.sync([item('text', description='Natural language processing NLP', deadline='2099-12-01T00:00:00Z'),
                          item('large', description='Requires 64 GB VRAM.', deadline='2099-12-01T00:00:00Z')], self.store.profile())
-        self.window.choose_chip('LLM · NLP')
+        self.window.topic.setCurrentText('LLM · NLP')
         self.assertEqual(self.window.current_page_refs, ['text'])
-        self.window.choose_chip('전체')
+        self.window.show_excluded.setChecked(True)
+        self.assertEqual(self.window.current_page_refs, ['text'])
+        self.assertEqual(self.window.filter_button.text(), '필터 (1)')
+        self.window.topic.setCurrentIndex(0)
         self.assertEqual(set(self.window.current_page_refs), {'text', 'large'})
-        self.window.choose_chip('추천')
+        self.window.show_excluded.setChecked(False)
         self.assertEqual(self.window.current_page_refs, ['text'])
 
     def test_keyboard_card_selection_and_bookmark(self):

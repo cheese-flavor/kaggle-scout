@@ -5,7 +5,7 @@ from core import display_date, plain
 
 DOCUMENT_STYLE = '''
 body {font-family:Pretendard;font-size:17px;color:#24394f;}
-h2 {font-size:24px;font-weight:700;color:#14243c;margin-top:0;margin-bottom:10px;}
+h2 {font-size:22px;font-weight:700;color:#14243c;margin-top:0;margin-bottom:8px;}
 h3 {font-size:18px;font-weight:600;color:#172d43;margin-top:24px;margin-bottom:9px;}
 p {font-size:17px;line-height:145%;margin-top:7px;margin-bottom:12px;}
 li {font-size:17px;margin-bottom:7px;}
@@ -26,15 +26,19 @@ def fields(rows):
 
 def detail_document(item, verdict, exclusions, last_seen, countdown, deadline_colors, topic_ink, long_practice=False):
     body = '<h2>' + text(item.get('title')) + '</h2>'
+    deadline_label = '장기 운영 일정 · API상 마감' if long_practice else '최종 제출 마감'
+    if countdown and not long_practice:
+        deadline_label += ' · ' + countdown
+    body += '<table width="100%" cellspacing="0" cellpadding="8" bgcolor="' + deadline_colors['surface'] + '"><tr><td>'
+    body += '<span style="font-size:14px;color:' + deadline_colors['ink'] + '">' + text(deadline_label) + '</span><br>'
+    body += '<b style="font-size:18px;color:' + deadline_colors['ink'] + '">' + text(display_date(item.get('deadline'))) + '</b>'
+    body += '</td></tr></table>'
+    eligibility = verdict['eligibility'].removeprefix('참가 대상: ')
+    closed = next((reason for reason in verdict['excluded']
+                   if reason in ('최종 제출 마감', '신규 참가 마감', '제출 비활성')), None)
+    body += fields([('참가 상태' if closed else '참가 대상', closed or eligibility)])
     body += '<p style="color:' + topic_ink + ';font-size:14px;font-weight:600">' + text(' · '.join(verdict['topics']), '분야 확인 필요') + '</p>'
     body += '<p>' + text(plain(item.get('description'))) + '</p>'
-    deadline_label = '장기 운영 일정 · API상 마감' if long_practice else '최종 제출 마감'
-    body += '<table width="100%" cellspacing="0" cellpadding="10" bgcolor="' + deadline_colors['surface'] + '"><tr><td>'
-    body += '<span style="font-size:14px;color:' + deadline_colors['ink'] + '">' + deadline_label + '</span><br>'
-    body += '<b style="font-size:18px;color:' + deadline_colors['ink'] + '">' + text(display_date(item.get('deadline'))) + '</b>'
-    if countdown:
-        body += '<br><span style="font-weight:600;color:' + deadline_colors['ink'] + '">' + text('장기 운영' if long_practice else countdown) + '</span>'
-    body += '</td></tr></table>'
     if verdict['education']:
         body += '<h3>교육용 분류</h3><p>' + text(verdict['education_reason']) + '</p>'
     body += '<h3>대회 일정</h3>' + fields([
@@ -48,9 +52,10 @@ def detail_document(item, verdict, exclusions, last_seen, countdown, deadline_co
         ('제출 방식', submission), ('최대 팀 인원', item.get('maxTeamSize')),
         ('보상', item.get('reward')), ('참여 팀', item.get('teamCount')),
     ])
-    body += '<h3>참가 조건·내 환경</h3>' + fields([
-        ('참가 대상', verdict['eligibility']), ('GPU', verdict['gpu']), ('API', verdict['api']),
-    ])
+    environment = [('GPU', verdict['gpu']), ('API', verdict['api'])]
+    if closed:
+        environment.insert(0, ('참가 대상', eligibility))
+    body += '<h3>참가 조건·내 환경</h3>' + fields(environment)
     body += '<h3>추천 이유</h3><ul>' + ''.join('<li>' + text(reason) + '</li>' for reason in verdict['reasons']) + '</ul>'
     if exclusions:
         body += '<h3 style="color:#ad3646">현재 제외 이유</h3>'

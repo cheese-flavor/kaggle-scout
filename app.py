@@ -141,10 +141,10 @@ def deadline_tone(value, long_practice=False):
 
 def icon_tile(name, color, background):
     tile = QLabel()
-    tile.setPixmap(icon(name, color, 30).pixmap(30, 30))
-    tile.setFixedSize(54, 54)
+    tile.setPixmap(icon(name, color, 22).pixmap(22, 22))
+    tile.setFixedSize(38, 38)
     tile.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    tile.setStyleSheet(f'background:{background}; border-radius:17px;')
+    tile.setStyleSheet(f'background:{background}; border-radius:12px;')
     return tile
 
 def deadline_badge(value):
@@ -657,8 +657,8 @@ class Window(QMainWindow):
     def build_discovery(self):
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(28, 38, 24, 16)
-        layout.setSpacing(14)
+        layout.setContentsMargins(28, 24, 24, 16)
+        layout.setSpacing(11)
         top = QHBoxLayout()
         titles = QVBoxLayout()
         self.heading = NounHeading()
@@ -670,8 +670,6 @@ class Window(QMainWindow):
         self.profile_pill = label('', 'profilePill')
         top.addWidget(self.profile_pill, 0, Qt.AlignmentFlag.AlignTop)
         layout.addLayout(top)
-        self.stats = label('', 'muted')
-        self.stats.hide()
         search_row = QHBoxLayout()
         self.search = QLineEdit()
         self.search.setObjectName('search')
@@ -692,35 +690,23 @@ class Window(QMainWindow):
         self.collection_tabs.currentChanged.connect(self.reset_page)
         group_row = QHBoxLayout()
         group_row.addWidget(self.collection_tabs, 0, Qt.AlignmentFlag.AlignLeft)
+        self.topic = QComboBox()
+        self.topic.addItems(['모든 분야'] + list(TOPICS) + ['LLM · NLP'])
+        self.topic.setAccessibleName('대회 분야')
+        self.topic.currentTextChanged.connect(self.reset_page)
+        group_row.addWidget(self.topic)
         group_row.addStretch()
-        self.trash_button = button('삭제 보관함', self.show_trash_dialog, icon_name='trash', tone='slate')
-        group_row.addWidget(self.trash_button)
-        layout.addLayout(group_row)
-        chip_row = QHBoxLayout()
-        self.quick_chips = []
-        for text in ['추천', '전체', '정형 데이터', 'LLM · NLP']:
-            chip = button(text, lambda checked=False, t=text: self.choose_chip(t))
-            chip.setObjectName('chipButton')
-            chip.setProperty('tone', 'indigo' if text == 'LLM · NLP' else 'slate' if text == '전체' else 'blue')
-            chip.setCheckable(True)
-            self.quick_chips.append(chip)
-            chip_row.addWidget(chip)
-        chip_row.addStretch()
-        filter_button = button('필터', lambda: None, icon_name='sliders-horizontal')
-        menu = QMenu(filter_button)
+        self.filter_button = button('필터', lambda: None, icon_name='sliders-horizontal')
+        menu = QMenu(self.filter_button)
         filter_panel = QWidget()
         filters = QVBoxLayout(filter_panel)
         filters.setContentsMargins(14, 12, 14, 12)
-        filters.addWidget(label('분야·정렬', 'title'))
-        self.topic = QComboBox()
-        self.topic.addItems(['모든 분야'] + list(TOPICS) + ['LLM · NLP'])
-        self.topic.currentTextChanged.connect(self.reset_page)
-        filters.addWidget(self.topic)
+        filters.addWidget(label('정렬·표시', 'title'))
         self.sort = QComboBox()
         self.sort.addItems(['추천 순', '마감 임박 순', '최근 발견 순'])
         self.sort.currentTextChanged.connect(self.reset_page)
         filters.addWidget(self.sort)
-        self.show_excluded = QCheckBox('제외·마감 대회도 보기')
+        self.show_excluded = QCheckBox('제외·마감 대회 포함')
         self.show_hidden = QCheckBox('숨긴 대회도 보기')
         self.show_excluded.toggled.connect(self.reset_page)
         self.show_hidden.toggled.connect(self.reset_page)
@@ -731,9 +717,11 @@ class Window(QMainWindow):
         action = QWidgetAction(menu)
         action.setDefaultWidget(filter_panel)
         menu.addAction(action)
-        filter_button.setMenu(menu)
-        chip_row.addWidget(filter_button)
-        layout.addLayout(chip_row)
+        self.filter_button.setMenu(menu)
+        group_row.addWidget(self.filter_button)
+        self.trash_button = button('삭제 보관함', self.show_trash_dialog, icon_name='trash', tone='slate')
+        group_row.addWidget(self.trash_button)
+        layout.addLayout(group_row)
         split = QSplitter(Qt.Orientation.Horizontal)
         scroll = QScrollArea()
         self.list_scroll = scroll
@@ -746,17 +734,20 @@ class Window(QMainWindow):
         split.addWidget(scroll)
         detail, d = card()
         detail.setMinimumWidth(290)
-        d.setContentsMargins(22, 22, 22, 22)
+        d.setContentsMargins(18, 16, 18, 16)
         self.detail = SafeTextBrowser()
         self.detail.document().setDefaultStyleSheet(DOCUMENT_STYLE)
         self.detail.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
         self.detail.setMinimumHeight(0)
         d.addWidget(self.detail, 1)
+        links = QHBoxLayout()
         self.original_button = button('Kaggle 원문 열기 ↗', self.open_selected, True)
-        d.addWidget(self.original_button)
+        links.addWidget(self.original_button, 1)
         actions = QHBoxLayout()
         self.star_button = button('☆ 관심', self.star)
-        self.rules_button = button('참가 규칙 확인', self.load_pages)
+        self.rules_button = button('참가 조건', self.load_pages, icon_name='layers')
+        links.addWidget(self.rules_button)
+        d.addLayout(links)
         self.hide_button = button('숨기기', self.hide_item)
         self.hide_button.setParent(detail)
         self.hide_button.hide()
@@ -773,7 +764,6 @@ class Window(QMainWindow):
         self.more_button.setMenu(more_menu)
         actions.addWidget(self.more_button)
         d.addLayout(actions)
-        d.addWidget(self.rules_button)
         split.addWidget(detail)
         split.setSizes([640, 380])
         layout.addWidget(split, 1)
@@ -816,18 +806,6 @@ class Window(QMainWindow):
             self.more_button.setVisible(compact or legacy_hidden)
             self.more_button.setText('')
             self.more_button.setFixedWidth(44)
-
-    def choose_chip(self, text):
-        self.topic.setCurrentText({'정형 데이터': '정형 데이터 / SQL', 'LLM · NLP': 'LLM · NLP'}.get(text, '모든 분야'))
-        self.show_excluded.setChecked(text == '전체')
-        self.reset_page()
-
-    def sync_chips(self):
-        chosen = ('정형 데이터' if self.topic.currentText() == '정형 데이터 / SQL' else
-                  'LLM · NLP' if self.topic.currentText() == 'LLM · NLP' else
-                  ('전체' if self.show_excluded.isChecked() else '추천') if self.topic.currentIndex() == 0 else '')
-        for b in self.quick_chips:
-            b.setChecked(b.text() == chosen)
 
     def reset_page(self, *_):
         self.page_index = 0
@@ -885,12 +863,18 @@ class Window(QMainWindow):
         separate = profile['separate_education']
         self.collection_tabs.setVisible(separate)
         self.show_excluded.setVisible(self.mode != 1)
-        for chip in self.quick_chips:
-            chip.setVisible(self.mode != 1 or chip.text() not in ('추천', '전체'))
+        active_filters = []
+        if self.sort.currentIndex():
+            active_filters.append(self.sort.currentText())
+        if self.mode == 0 and self.show_excluded.isChecked():
+            active_filters.append('제외·마감 포함')
+        if self.show_hidden.isChecked():
+            active_filters.append('숨긴 대회 포함')
+        self.filter_button.setText(f'필터 ({len(active_filters)})' if active_filters else '필터')
+        self.filter_button.setToolTip(' · '.join(active_filters) or '정렬·표시 설정')
         education_view = separate and self.collection_tabs.currentIndex() == 1
         set_tone(self.collection_tabs, 'teal' if education_view else 'blue')
-        self.sync_chips()
-        intro = '관심 등록 대회 목록' if self.mode == 1 else ('입문·연습 대회 목록' if education_view else '관심 분야·참가 조건 기준 대회 목록')
+        intro = '관심 등록 대회 목록' if self.mode == 1 else ('입문·연습 대회 목록' if education_view else '참가 조건 적용 · 관심 분야에 따라 추천 점수 반영')
         self.hero_text.setText(('예시 데이터 화면 · ' if self.preview else '') + intro)
         self.hero_text.setToolTip(f"관심 분야 {len(profile['topics'])}개 · {profile['interval']}분마다 확인")
         deleted = self.store.trash_rows()
@@ -912,7 +896,8 @@ class Window(QMainWindow):
                 continue
             if details and self.mode != 1 and not self.show_excluded.isChecked():
                 continue
-            if query and query not in plain(json.dumps(item, ensure_ascii=False)).lower():
+            search_text = ' '.join([str(item.get('title', '')), plain(item.get('description')), *verdict['topics']])
+            if query and query not in search_text.lower():
                 continue
             if self.topic.currentText() == 'LLM · NLP':
                 if not {'NLP', 'LLM / 생성형 AI'}.intersection(verdict['topics']):
@@ -934,7 +919,6 @@ class Window(QMainWindow):
                 score = -row['verdict']['score'] if order == 0 else 0
                 return end is None, score, end, row['ref']
             results.sort(key=deadline_order)
-        self.stats.setText(f"표시 {len(results)}개    /    저장된 대회 {len(rows)}개    /    관심 {sum(r['starred'] for r in rows)}개" + ('    ·    가상 데이터 미리보기' if self.preview else ''))
         size = profile['page_size']
         if reveal_ref:
             for index, row in enumerate(results):
@@ -983,16 +967,16 @@ class Window(QMainWindow):
             panel.setProperty('context', 'bookmark' if self.mode == 1 else 'education' if education_view else 'general')
             self.card_frames[row['ref']] = panel
             panel.clicked.connect(lambda ref=row['ref']: self.select(ref))
-            panel.setMinimumHeight(210)
+            panel.setMinimumHeight(108)
             p = QHBoxLayout(panel)
-            p.setContentsMargins(18, 20, 18, 20)
-            p.setSpacing(16)
+            p.setContentsMargins(14, 12, 14, 12)
+            p.setSpacing(12)
             primary_topic, topic_icon, color, background = topic_visual(v['topics'])
             p.addWidget(icon_tile(topic_icon, color, background), 0, Qt.AlignmentFlag.AlignVCenter)
             body = QVBoxLayout()
-            body.setSpacing(10)
+            body.setSpacing(6)
             top = QHBoxLayout()
-            name = label(title, 'title', True)
+            name = label(title, 'listTitle', True)
             top.addWidget(name, 1)
             if v['education']:
                 badge = label('교육용', 'chip')
@@ -1000,12 +984,10 @@ class Window(QMainWindow):
                 badge.setToolTip(v['education_reason'])
                 top.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
             body.addLayout(top)
-            desc = plain(item.get('description', ''))
-            body.addWidget(label(desc[:110] + ('…' if len(desc) > 110 else ''), 'cardDescription', True))
+            meta = QHBoxLayout()
             tag = label(primary_topic, 'chip')
             tag.setStyleSheet(f'background:{background};color:{color};border-radius:11px;padding:5px 9px;font-size:14px;')
-            body.addWidget(tag, 0, Qt.AlignmentFlag.AlignLeft)
-            meta = QHBoxLayout()
+            meta.addWidget(tag)
             cal = QLabel()
             cal.setPixmap(icon('calendar-days', size=18).pixmap(18, 18))
             meta.addWidget(cal)
@@ -1019,7 +1001,9 @@ class Window(QMainWindow):
             meta.addStretch()
             body.addLayout(meta)
             if row['exclusions']:
-                body.addWidget(label('제외: ' + ' · '.join(dict.fromkeys(d['label'] for d in row['exclusions'])), 'muted', True))
+                status = '상태' if self.mode == 1 else '제외'
+                reasons = ' · '.join(dict.fromkeys(d['label'] for d in row['exclusions']))
+                body.addWidget(label(f'{status} · {reasons}', 'muted', True))
             p.addLayout(body, 1)
             self.cards.addWidget(panel)
         self.cards.addStretch()

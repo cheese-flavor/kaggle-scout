@@ -59,7 +59,7 @@ class EducationUITests(unittest.TestCase):
         self.assertTrue(all(ref.startswith('education-') for ref in self.window.current_page_refs))
         self.window.search.setText('education 10')
         self.assertEqual(self.window.current_page_refs, ['education-10'])
-        self.window.choose_chip('전체')
+        self.window.show_excluded.setChecked(True)
         self.assertEqual(self.window.current_page_refs, ['education-10'])
 
     def test_exclusion_dialog_opens_correct_group(self):
