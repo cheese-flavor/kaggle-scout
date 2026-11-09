@@ -139,12 +139,41 @@ def plain(value):
     import html
     return html.unescape(re.sub('<[^>]+>', ' ', str(value or '')))
 
+CHANGE_FIELDS = {
+    'title': '대회명', 'description': '소개', 'deadline': '최종 제출 마감',
+    'newEntrantDeadline': '참가 마감', 'mergerDeadline': '팀 구성 마감',
+    'reward': '보상', 'maxTeamSize': '최대 팀 인원',
+    'isKernelsSubmissionsOnly': 'Notebook 제출 제한',
+    'submissionsDisabled': '제출 비활성', 'pages': '추가 설명·규칙',
+}
+REMINDER_FIELDS = {'newEntrantDeadline': '참가', 'mergerDeadline': '팀 구성', 'deadline': '제출'}
+
+
 def fingerprint(item):
     # Popularity and rank change frequently; neither should trigger a change alert.
-    fields = ('title', 'description', 'deadline', 'newEntrantDeadline', 'mergerDeadline',
-              'reward', 'maxTeamSize', 'isKernelsSubmissionsOnly', 'submissionsDisabled', 'pages')
-    return hashlib.sha256(json.dumps({k: item.get(k) for k in fields},
+    return hashlib.sha256(json.dumps({k: item.get(k) for k in CHANGE_FIELDS},
                                      sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
+def changed_fields(previous, current):
+    changes = []
+    for field in CHANGE_FIELDS:
+        before, after = previous.get(field), current.get(field)
+        if before == after:
+            continue
+        if field in ('description', 'pages'):
+            before, after = (' '.join(plain(value).split()) for value in (before, after))
+            offset = next((i for i, pair in enumerate(zip(before, after)) if pair[0] != pair[1]),
+                          min(len(before), len(after)))
+            start = max(0, offset - 45)
+            before, after = (('…' if start else '') + value[start:start + 180] +
+                             ('…' if len(value) > start + 180 else '') for value in (before, after))
+        else:
+            before, after = (value[:180] + '…' if isinstance(value, str) and len(value) > 180 else value
+                             for value in (before, after))
+        changes.append({'field': field, 'before': before, 'after': after})
+    return changes
+
 
 def slug(item):
     value = str(item.get('ref', '')).rstrip('/').split('/')[-1]
@@ -425,11 +454,15 @@ class Store:
                 if kind and not (old and (old['hidden'] or old['trashed_at'])):
                     msg = item.get('title', ref)
                     notices.append((kind, msg, ref))
-                    con.execute("INSERT INTO events(created,kind,ref,message,delivery) VALUES(?,?,?,?,'pending')", (stamp, kind, ref, msg))
+                    context = {}
+                    if kind == '정보 변경':
+                        context['changes'] = changed_fields(json.loads(old['body']), item)
+                    con.execute("INSERT INTO events(created,kind,ref,message,delivery,context) VALUES(?,?,?,?,'pending',?)",
+                                (stamp, kind, ref, msg, json.dumps(context, ensure_ascii=False)))
             # Interest reminders also run over cached records and recover after sleep.
             for row in con.execute('SELECT * FROM items WHERE starred=1 AND hidden=0 AND trashed_at IS NULL').fetchall():
                 item = json.loads(row['body'])
-                for field, label in [('newEntrantDeadline', '참가'), ('mergerDeadline', '팀 구성'), ('deadline', '제출')]:
+                for field, label in REMINDER_FIELDS.items():
                     end = date(item.get(field))
                     if not end or end <= at:
                         continue

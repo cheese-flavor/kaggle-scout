@@ -1,5 +1,4 @@
 import copy
-import html
 import json
 import os
 from pathlib import Path
@@ -19,6 +18,7 @@ ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__
 ASSETS = Path(getattr(sys, '_MEIPASS', ROOT)) / 'assets'
 from ui_theme import STYLE, icon, TONES, TOPIC_TONES, NAV_TONES, set_tone
 from detail_view import DOCUMENT_STYLE, detail_document
+from notification_view import HISTORY_STYLE, history_document
 
 def label(text, kind=None, wrap=False):
     w = QLabel()
@@ -1203,24 +1203,25 @@ class Window(QMainWindow):
     def build_events(self):
         page = QWidget()
         box = QVBoxLayout(page)
-        box.setContentsMargins(32, 32, 32, 32)
+        box.setContentsMargins(28, 24, 24, 20)
         box.addWidget(label('알림 기록', 'heading'))
-        box.addWidget(label('추천 조건에 맞는 새 대회 · 관심 대회의 변경·마감 기록', 'muted', True))
+        box.addWidget(label('새 대회 · 관심 대회 변경·마감', 'muted'))
         self.events = SafeTextBrowser()
-        self.events.document().setDefaultStyleSheet('body {font-family:Pretendard; font-size:16px;} h3 {font-size:17px; font-weight:600;}')
+        self.events.document().setDocumentMargin(16)
+        self.events.document().setDefaultStyleSheet(HISTORY_STYLE)
+        self.events.anchorClicked.connect(self.open_history_link)
         box.addWidget(self.events)
         self.pages.addWidget(page)
+
+    def open_history_link(self, url):
+        if url.scheme() == 'scout':
+            self.open_competition(url.path())
 
     def render_events(self):
         with self.store.connect() as con:
             rows = con.execute('SELECT * FROM events ORDER BY id DESC LIMIT 300').fetchall()
-        states = {'pending': '시간대·표시 대기', 'sent': 'PC 알림 표시 요청됨', 'skipped': '설정 또는 현재 상태로 PC 알림 생략', 'legacy': '이전 기록'}
-        chunks = []
-        tones = {'새 추천': 'blue', '정보 변경': 'violet', '마감 임박': 'amber'}
-        for row in rows:
-            ink = TONES[tones.get(row['kind'], 'slate')]['ink']
-            chunks.append('<h3 style="color:' + ink + '">' + html.escape(row['kind']) + '</h3><p>' + html.escape(row['message']) + '</p><p style="color:#6c7d90">' + display_date(row['created']) + ' · ' + states.get(row['delivery'], '기록됨') + '</p><hr>')
-        self.events.setHtml(''.join(chunks) or '<h3>알림 기록 없음</h3><p>새 대회는 추천 조건 기준, 정보 변경·마감은 관심 등록 대회 기준으로 기록합니다. 첫 수집 목록은 신규 알림으로 보내지 않습니다.</p>')
+        titles = {r['ref']: json.loads(r['body']).get('title') or r['ref'] for r in self.store.rows()}
+        self.events.setHtml(history_document(rows, titles))
 
     def build_settings(self):
         scroll = QScrollArea()
@@ -1435,6 +1436,7 @@ class Window(QMainWindow):
     def settings_section_changed(self, index):
         self.settings_scroll = self.settings_tab_scrolls[index]
         set_tone(self.settings_tabs.tabBar(), ('blue', 'violet', 'teal', 'amber')[index])
+        self.queue_settings_preview()
 
     def update_notification_controls(self, *_):
         enabled = self.notifications.isChecked()
@@ -1455,12 +1457,23 @@ class Window(QMainWindow):
         except ValueError:
             self.settings_status.setText('입력값을 확인해 주세요.')
             return
+        changed = p != self.store.profile() or (not self.preview and self.autostart.isChecked() != self.autostart_enabled())
+        state = '저장 전' if changed else '저장됨'
+        if self.settings_tabs.currentIndex() == 3:
+            schedule = 'PC 알림 끔'
+            if p['notify']:
+                schedule = 'PC 알림 항상 표시'
+                if p['notify_schedule'] == 'window':
+                    start, end = p['notify_start'], p['notify_end']
+                    day = '다음 날 ' if end < start else ''
+                    schedule = f'PC 알림 {start}~{day}{end} KST'
+            self.settings_status.setText(f'{state} · {schedule}')
+            return
         rows = [r for r in self.store.rows() if not r['hidden']]
         verdicts = [assess(json.loads(r['body']), p) for r in rows]
         candidates = sum(not v['excluded'] and v['score'] >= p['min_score'] for v in verdicts)
         education_count = sum(v['education'] and not v['excluded'] and v['score'] >= p['min_score'] for v in verdicts)
-        changed = p != self.store.profile() or self.autostart.isChecked() != self.autostart_enabled()
-        self.settings_status.setText(('저장 전' if changed else '저장됨') + (f' · 현재 목록에서 추천 후보 {candidates}개' if rows else ' · 수집 후 추천 후보를 확인할 수 있습니다.'))
+        self.settings_status.setText(state + (f' · 현재 목록에서 추천 후보 {candidates}개' if rows else ' · 수집 후 추천 후보를 확인할 수 있습니다.'))
         if rows and p['separate_education']:
             self.settings_status.setText(self.settings_status.text() + f' (일반 {candidates - education_count} · 교육 {education_count})')
 
@@ -1540,7 +1553,10 @@ class Window(QMainWindow):
             except OSError:
                 self.settings_status.setText('프로필은 저장했지만 자동 시작 등록에 실패했습니다.')
                 return
-        self.settings_status.setText('설정을 저장했습니다. 추천 목록에 적용되었습니다.')
+        if self.settings_tabs.currentIndex() == 3:
+            self.preview_settings()
+        else:
+            self.settings_status.setText('설정을 저장했습니다. 추천 목록에 적용되었습니다.')
         self.render()
         self.flush_notifications()
         if start_first_collection:
