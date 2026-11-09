@@ -89,3 +89,9 @@ The summary/full tabs and their More actions are removed. One escaped rich-text 
 89 regression checks pass. Four new checks verify preservation of supplied metadata and a zero team count, escaped external markup, explicit education/exclusion/unknown states, and bookmark reading-position retention plus reset on selecting another competition. The former compact-view test now checks all information without a view switch. Token privacy, real-account permissions, another display's DPI and full accessibility compliance are not inferred from these captures.
 
 v0.9.0 packaged verification: clean build starts/renders/exits successfully with isolated preview data. After the user closed v0.8.1, v0.9.0 installation completed. The installed executable also renders and exits normally with isolated data. Desktop/Start menu targets and executable metadata resolve to 0.9.0; user DB existence and SHA256 remain unchanged after installation.
+
+## v0.10.0 · Competition discovery and alert history
+
+Inspected synthetic discovery at 1180 × 820, education at 960 × 680, grouped history, and notification settings with an overnight window. The compact list shows title, topic, deadline and status. Detail puts final submission and participation ahead of the description. History groups events by competition, preserves legacy entries, and displays previous and changed values when recorded. The schedule preview distinguishes saved and edited values.
+
+All 95 tests pass, including tray and exact-ref navigation, deadline sorting, independent bookmark filters, change context and history links. The clean build and installed executable both start, render and exit with isolated data. Desktop and Start menu shortcuts resolve to 0.10.0. The existing user database has the same presence and SHA256 before and after installation. The gallery contains 68 fixture images, with prior sources verified byte for byte.
