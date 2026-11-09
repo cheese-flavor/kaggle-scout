@@ -101,3 +101,5 @@ All 95 tests pass, including tray and exact-ref navigation, deadline sorting, in
 Fresh v0.10.0 fixture captures showed tight date and status text, dense alert rows, and notification time controls spaced far apart. The v0.10.1 captures use the same fixture workflow. Inspected discovery and scrolled details at 1180 × 820, education at 960 × 680, grouped alert history, and profile and notification settings. The minimum window retains the deadline, participation state, and first description line in the top detail view. Wider rows mean more vertical scrolling through the full detail at minimum height.
 
 All 96 regression tests pass. The new minimum-window test covers long Korean and English text and unbroken tokens in details and history, with scrolling and the primary action available. The gallery retains 80 source-verified fixture images.
+
+The v0.10.1 packaged and installed executables start, render and exit using isolated preview data. Both shortcuts target the new version. The user database was backed up and retained its SHA256.
