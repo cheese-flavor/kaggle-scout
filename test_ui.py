@@ -84,6 +84,25 @@ class UITests(unittest.TestCase):
         self.assertEqual(self.window.page_index, 0)
         self.assertEqual(self.window.current_page_refs, ['competition-01'])
 
+    def test_bookmarks_use_their_own_filters_and_keep_excluded_competitions(self):
+        self.store.sync([item('saved', title='저장한 마감 대회', deadline='2001-01-01T00:00:00Z'),
+                         item('visible', title='탐색 대회', deadline='2099-12-01T00:00:00Z')], self.store.profile())
+        self.store.flag('saved', 'starred', True)
+        w = self.window
+        w.search.setText('탐색')
+        self.assertEqual(w.current_page_refs, ['visible'])
+        w.navigate(1)
+        self.assertEqual(w.search.text(), '')
+        self.assertEqual(w.current_page_refs, ['saved'])
+        self.assertIn('최종 제출 마감', w.detail.toPlainText())
+        w.search.setText('저장한')
+        w.navigate(3)
+        w.navigate(0)
+        self.assertEqual(w.search.text(), '탐색')
+        w.navigate(1)
+        self.assertEqual(w.search.text(), '저장한')
+        self.assertEqual(w.current_page_refs, ['saved'])
+
     def test_deadline_sort_handles_null_missing_and_timezone_offsets(self):
         self.store.sync([
             item('null', deadline=None),

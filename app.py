@@ -473,6 +473,7 @@ class Window(QMainWindow):
         self.credentials = None
         self.job = None
         self.mode = 0
+        self.list_filters = {}
         self.page_index = 0
         self.current_page_refs = []
         self.selected = None
@@ -573,15 +574,10 @@ class Window(QMainWindow):
         item = json.loads(row['body'])
         verdict = assess(item, profile)
         self.navigate(0)
-        widgets = (self.search, self.topic, self.collection_tabs, self.show_excluded, self.show_hidden)
-        blockers = [QSignalBlocker(widget) for widget in widgets]
-        self.search.clear()
-        self.topic.setCurrentIndex(0)
-        self.collection_tabs.setCurrentIndex(int(profile['separate_education'] and verdict['education']))
-        self.show_excluded.setChecked(bool(exclusion_details(item, profile, verdict)))
-        self.show_hidden.setChecked(bool(row['hidden']))
-        for blocker in blockers:
-            blocker.unblock()
+        self.apply_list_filters(sort=self.sort.currentIndex(),
+                                group=int(profile['separate_education'] and verdict['education']),
+                                include_excluded=bool(exclusion_details(item, profile, verdict)),
+                                include_hidden=bool(row['hidden']))
         self.render(reveal_ref=ref)
         frame = self.card_frames.get(ref)
         if frame is None:
@@ -639,6 +635,14 @@ class Window(QMainWindow):
         dlg.deleteLater()
 
     def navigate(self, index):
+        if self.mode != index:
+            if self.mode <= 1:
+                self.list_filters[self.mode] = dict(
+                    search=self.search.text(), topic=self.topic.currentIndex(),
+                    sort=self.sort.currentIndex(), group=self.collection_tabs.currentIndex(),
+                    include_excluded=self.show_excluded.isChecked(), include_hidden=self.show_hidden.isChecked())
+            if index <= 1:
+                self.apply_list_filters(**self.list_filters.get(index, {'group': self.collection_tabs.currentIndex()}))
         self.mode = index
         self.page_index = 0
         for i, b in enumerate(self.nav):
@@ -843,16 +847,21 @@ class Window(QMainWindow):
             self.page_size_input.setCurrentIndex(self.page_size_input.findData(size))
         self.reset_page()
 
+    def apply_list_filters(self, *, search='', topic=0, sort=0, group=0,
+                           include_excluded=False, include_hidden=False):
+        widgets = (self.search, self.topic, self.sort, self.collection_tabs, self.show_excluded, self.show_hidden)
+        blockers = [QSignalBlocker(widget) for widget in widgets]
+        self.search.setText(search)
+        self.topic.setCurrentIndex(topic)
+        self.sort.setCurrentIndex(sort)
+        self.collection_tabs.setCurrentIndex(group)
+        self.show_excluded.setChecked(include_excluded)
+        self.show_hidden.setChecked(include_hidden)
+        for blocker in blockers:
+            blocker.unblock()
+
     def clear_search_filters(self):
-        for w in (self.search, self.topic, self.sort, self.show_excluded, self.show_hidden):
-            w.blockSignals(True)
-        self.search.clear()
-        self.topic.setCurrentIndex(0)
-        self.sort.setCurrentIndex(0)
-        self.show_excluded.setChecked(False)
-        self.show_hidden.setChecked(False)
-        for w in (self.search, self.topic, self.sort, self.show_excluded, self.show_hidden):
-            w.blockSignals(False)
+        self.apply_list_filters(group=self.collection_tabs.currentIndex())
         self.reset_page()
 
     def render(self, *_, reveal_ref=None):
@@ -875,6 +884,9 @@ class Window(QMainWindow):
         self.profile_pill.setText(f"{profile['gpu']} · {profile['vram']}GB")
         separate = profile['separate_education']
         self.collection_tabs.setVisible(separate)
+        self.show_excluded.setVisible(self.mode != 1)
+        for chip in self.quick_chips:
+            chip.setVisible(self.mode != 1 or chip.text() not in ('추천', '전체'))
         education_view = separate and self.collection_tabs.currentIndex() == 1
         set_tone(self.collection_tabs, 'teal' if education_view else 'blue')
         self.sync_chips()
@@ -898,7 +910,7 @@ class Window(QMainWindow):
                 continue
             if row['hidden'] and not self.show_hidden.isChecked():
                 continue
-            if details and not self.show_excluded.isChecked():
+            if details and self.mode != 1 and not self.show_excluded.isChecked():
                 continue
             if query and query not in plain(json.dumps(item, ensure_ascii=False)).lower():
                 continue
@@ -942,14 +954,16 @@ class Window(QMainWindow):
         clear(self.cards)
         if not results:
             panel, p = card()
-            if rows and (query or self.topic.currentIndex()):
+            if self.mode == 1 and not any(r['starred'] for r in rows):
+                title, text, action, fn = '관심 대회 없음', '상세에서 관심 등록한 대회가 여기에 표시됩니다.', '대회 탐색', lambda: self.navigate(0)
+            elif rows and (query or self.topic.currentIndex()):
                 title, text, action, fn = '검색 결과 없음', '검색어나 분야를 변경할 수 있습니다.', '검색 조건 초기화', self.clear_search_filters
-            elif self.mode == 1 and not any(r['starred'] for r in rows):
-                title, text, action, fn = '관심 대회 없음', '관심 등록한 대회가 이 목록에 표시됩니다.', '대회 탐색', lambda: self.navigate(0)
             elif separate and education_view and rows:
                 title, text, action, fn = '교육용 대회 없음', '교육용 분류와 검색·제외 조건을 설정에서 조절할 수 있습니다.', '일반 대회 보기', lambda: self.collection_tabs.setCurrentIndex(0)
             elif separate and education_count and rows:
                 title, text, action, fn = '일반 대회 없음', '현재 조건에 맞는 입문·연습 대회는 교육용 보기에 있습니다.', '교육용 보기', lambda: self.collection_tabs.setCurrentIndex(1)
+            elif self.mode == 1:
+                title, text, action, fn = '표시할 관심 대회 없음', '필터에서 숨긴 관심 대회도 확인할 수 있습니다.', '숨긴 대회 보기', lambda: self.show_hidden.setChecked(True)
             elif rows:
                 title, text, action, fn = '추천 대회 없음', '참가 대상이나 추천 점수 조건을 조정할 수 있습니다.', '추천 조건 조정', lambda: self.navigate(3)
             elif self.credentials:
