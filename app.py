@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import sys
 from datetime import timedelta
-from PySide6.QtCore import Qt, QThread, Signal, QTimer, QLockFile, QUrl, QTime, QSize
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QLockFile, QUrl, QTime, QSize, QSignalBlocker
 from PySide6.QtGui import QIcon, QFont, QFontDatabase, QDesktopServices, QAction, QKeyEvent, QTextOption
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
     QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget, QScrollArea,
@@ -298,15 +298,9 @@ class ExclusionDialog(QDialog):
     def view(self):
         current = self.items.currentItem()
         if current:
-            ref, item, _ = current.data(Qt.ItemDataRole.UserRole)
+            ref, _, _ = current.data(Qt.ItemDataRole.UserRole)
             self.accept()
-            self.window.navigate(0)
-            self.window.clear_search_filters()
-            education = assess(item, self.window.store.profile())['education']
-            self.window.collection_tabs.setCurrentIndex(1 if education and self.window.store.profile()['separate_education'] else 0)
-            self.window.show_excluded.setChecked(True)
-            self.window.search.setText(str(item.get('title', ref)))
-            self.window.select(ref)
+            self.window.open_competition(ref)
 
 def recovery_label(row):
     until = date(row.get('trash_until'))
@@ -482,6 +476,7 @@ class Window(QMainWindow):
         self.page_index = 0
         self.current_page_refs = []
         self.selected = None
+        self.notice_ref = None
         self.next_due = now()
         self.quitting = False
         self.await_profile = False
@@ -551,19 +546,48 @@ class Window(QMainWindow):
         menu.addAction('종료', self.quit_app)
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(lambda reason: self.show_app() if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
-        self.tray.messageClicked.connect(self.show_app)
+        self.tray.messageClicked.connect(self.open_notice)
         if QSystemTrayIcon.isSystemTrayAvailable() and not self.preview:
             self.tray.show()
 
     def show_app(self):
-        if hasattr(self, 'notice_ref') and self.notice_ref:
-            ref = self.notice_ref
-            self.navigate(0)
-            self.select(ref)
-            self.notice_ref = None
-        self.showNormal()
+        if self.isMinimized():
+            self.showNormal()
+        else:
+            self.show()
         self.raise_()
         self.activateWindow()
+
+    def open_notice(self):
+        ref = self.notice_ref
+        self.notice_ref = None
+        if not ref or not self.open_competition(ref):
+            self.navigate(2)
+        self.show_app()
+
+    def open_competition(self, ref):
+        row = next((row for row in self.store.rows() if row['ref'] == ref), None)
+        if row is None:
+            return False
+        profile = self.store.profile()
+        item = json.loads(row['body'])
+        verdict = assess(item, profile)
+        self.navigate(0)
+        widgets = (self.search, self.topic, self.collection_tabs, self.show_excluded, self.show_hidden)
+        blockers = [QSignalBlocker(widget) for widget in widgets]
+        self.search.clear()
+        self.topic.setCurrentIndex(0)
+        self.collection_tabs.setCurrentIndex(int(profile['separate_education'] and verdict['education']))
+        self.show_excluded.setChecked(bool(exclusion_details(item, profile, verdict)))
+        self.show_hidden.setChecked(bool(row['hidden']))
+        for blocker in blockers:
+            blocker.unblock()
+        self.render(reveal_ref=ref)
+        frame = self.card_frames.get(ref)
+        if frame is None:
+            return False
+        self.list_scroll.ensureWidgetVisible(frame)
+        return True
 
     def closeEvent(self, event):
         if not self.quitting and self.tray.isVisible():
@@ -831,7 +855,7 @@ class Window(QMainWindow):
             w.blockSignals(False)
         self.reset_page()
 
-    def render(self, *_):
+    def render(self, *_, reveal_ref=None):
         if not hasattr(self, 'cards'):
             return
         profile = self.store.profile()
@@ -889,14 +913,23 @@ class Window(QMainWindow):
         self.collection_tabs.setTabText(1, f'교육용 ({education_count})')
         if separate:
             results = [r for r in results if r['verdict']['education'] == education_view]
-        if self.sort.currentIndex() == 1:
-            results.sort(key=lambda r: date(r['item'].get('deadline')) or now() + timedelta(days=99999))
-        elif self.sort.currentIndex() == 2:
+        order = self.sort.currentIndex()
+        if order == 2:
             results.sort(key=lambda r: r['first_seen'], reverse=True)
         else:
-            results.sort(key=lambda r: (-r['verdict']['score'], r['item'].get('deadline', '9999')))
+            def deadline_order(row):
+                end = date(row['item'].get('deadline'))
+                score = -row['verdict']['score'] if order == 0 else 0
+                return end is None, score, end, row['ref']
+            results.sort(key=deadline_order)
         self.stats.setText(f"표시 {len(results)}개    /    저장된 대회 {len(rows)}개    /    관심 {sum(r['starred'] for r in rows)}개" + ('    ·    가상 데이터 미리보기' if self.preview else ''))
         size = profile['page_size']
+        if reveal_ref:
+            for index, row in enumerate(results):
+                if row['ref'] == reveal_ref:
+                    self.page_index = index // size
+                    self.selected = reveal_ref
+                    break
         count = len(results)
         page_count = max(1, (count + size - 1) // size)
         self.page_index = max(0, min(self.page_index, page_count - 1))
@@ -1010,6 +1043,8 @@ class Window(QMainWindow):
             self.status.setText('삭제 보관함 이동 · ' + recovery_label(remaining) if remaining else '삭제 완료 · 복구 기한 경과')
 
     def select(self, ref):
+        if ref not in self.current_page_refs:
+            ref = None
         self.selected = ref
         for key, frame in getattr(self, 'card_frames', {}).items():
             frame.setProperty('selected', key == ref)
@@ -1131,11 +1166,11 @@ class Window(QMainWindow):
             return
         counts = {kind: sum(e['kind'] == kind for e in batch) for kind in NOTIFY_KINDS}
         title = ' · '.join(f'{NOTIFY_KINDS[k]} {n}건' for k, n in counts.items() if n)
-        self.notice_ref = batch[0]['ref']
         text = batch[0]['message']
         if len(batch) > 1:
             text += f'\n외 {len(batch)-1}건 · 전체 내용은 알림 기록에서 확인하세요.'
         if self.notify(title, text):
+            self.notice_ref = batch[0]['ref'] if len(batch) == 1 else None
             self.store.mark_notified([e['id'] for e in batch])
 
     def tick(self):

@@ -84,6 +84,20 @@ class UITests(unittest.TestCase):
         self.assertEqual(self.window.page_index, 0)
         self.assertEqual(self.window.current_page_refs, ['competition-01'])
 
+    def test_deadline_sort_handles_null_missing_and_timezone_offsets(self):
+        self.store.sync([
+            item('null', deadline=None),
+            item('invalid', deadline='unknown'),
+            item('later', deadline='2099-12-01T02:00:00Z'),
+            item('earlier', deadline='2099-12-01T09:00:00+09:00'),
+            {key: value for key, value in item('missing').items() if key != 'deadline'},
+        ], self.store.profile())
+        for order in (0, 1):
+            self.window.sort.setCurrentIndex(order)
+            self.window.render()
+            self.assertEqual(self.window.current_page_refs[:2], ['earlier', 'later'])
+            self.assertCountEqual(self.window.current_page_refs[2:], ['null', 'missing', 'invalid'])
+
     def test_page_size_saved_and_used_by_settings(self):
         self.window.display_size.setCurrentIndex(self.window.display_size.findData(5))
         self.assertEqual(self.store.profile()['page_size'], 5)
