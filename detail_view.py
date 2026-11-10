@@ -5,15 +5,16 @@ from core import display_date, plain
 
 DOCUMENT_STYLE = '''
 body {font-family:Pretendard;font-size:17px;color:#24394f;}
-h2 {font-size:22px;font-weight:700;color:#14243c;line-height:126%;margin-top:0;margin-bottom:10px;}
+h2 {font-size:22px;font-weight:700;color:#14243c;line-height:126%;margin-top:0;margin-bottom:16px;}
 h3 {font-size:18px;font-weight:600;color:#172d43;line-height:135%;margin-top:26px;margin-bottom:10px;}
 p {font-size:17px;line-height:154%;margin-top:0;margin-bottom:12px;}
 li {font-size:17px;line-height:154%;margin-bottom:9px;}
 ul {margin-top:0;margin-bottom:12px;-qt-list-indent:1;}
 td {font-size:17px;vertical-align:top;}
 td p {line-height:140%;margin:0;}
-p.eligibility {line-height:140%;margin-top:8px;margin-bottom:6px;}
-p.topic {font-size:14px;font-weight:600;line-height:130%;margin-top:6px;margin-bottom:6px;}
+p.overview-label {font-size:14px;color:#53647a;line-height:125%;margin-bottom:2px;}
+p.overview-value {font-size:16px;line-height:133%;}
+h3.intro {margin-top:14px;margin-bottom:6px;}
 p.detail-note {font-size:14px;color:#53647a;}
 '''
 
@@ -34,7 +35,7 @@ def detail_document(item, verdict, exclusions, last_seen, countdown, deadline_co
     deadline_label = '장기 운영 일정 · API상 마감' if long_practice else '최종 제출 마감'
     if countdown and not long_practice:
         deadline_label += ' · ' + countdown
-    body += '<table width="100%" cellspacing="0" cellpadding="9" bgcolor="' + deadline_colors['surface'] + '"><tr><td>'
+    body += '<table width="100%" cellspacing="0" cellpadding="8" bgcolor="' + deadline_colors['surface'] + '"><tr><td>'
     ink = deadline_colors['ink']
     body += f'<p style="font-size:14px;color:{ink};line-height:125%">{text(deadline_label)}</p>'
     body += f'<p style="font-size:18px;color:{ink};font-weight:700;line-height:125%">{text(display_date(item.get("deadline")))}</p>'
@@ -43,10 +44,13 @@ def detail_document(item, verdict, exclusions, last_seen, countdown, deadline_co
     closed = next((reason for reason in verdict['excluded']
                    if reason in ('최종 제출 마감', '신규 참가 마감', '제출 비활성')), None)
     eligibility_label = '참가 상태' if closed else '참가 대상'
-    body += (f'<p class="eligibility"><span style="font-size:14px;color:#53647a">{eligibility_label} · </span>'
-             f'{text(closed or eligibility)}</p>')
-    body += '<p class="topic" style="color:' + topic_ink + '">' + text(' · '.join(verdict['topics']), '분야 확인 필요') + '</p>'
-    body += '<p>' + text(plain(item.get('description'))) + '</p>'
+    topics = text(' · '.join(verdict['topics']), '확인 필요')
+    body += ('<table width="100%" cellspacing="0" cellpadding="8" style="margin-top:8px" bgcolor="#f4f7fb"><tr>'
+             f'<td width="47%"><p class="overview-label">{eligibility_label}</p>'
+             f'<p class="overview-value">{text(closed or eligibility)}</p></td>'
+             '<td><p class="overview-label">연관 분야</p>'
+             f'<p class="overview-value" style="color:{topic_ink};font-weight:600">{topics}</p></td></tr></table>')
+    body += '<h3 class="intro">대회 소개</h3><p>' + text(plain(item.get('description'))) + '</p>'
     if verdict['education']:
         body += '<h3>교육용 분류</h3><p>' + text(verdict['education_reason']) + '</p>'
     body += '<h3>대회 일정</h3>' + fields([

@@ -30,6 +30,10 @@ class DetailDocumentTests(unittest.TestCase):
                         '2026-11-25 09:00 KST', 'RMSE', '5', '참여 팀', '0', '$1,000',
                         'Notebook 코드 제출', '규칙 첫 줄', '규칙 마지막 줄', 'GPU', 'API', '추천 이유', '확인 기록'):
             self.assertIn(content, plain)
+        overview = ('전체 대회', '최종 제출 마감', '2026-11-25 09:00 KST',
+                    '참가 대상', '연관 분야', '대회 소개', value['description'], '대회 일정')
+        offsets = [plain.index(part) for part in overview]
+        self.assertEqual(offsets, sorted(offsets))
 
     def test_external_fields_are_escaped_and_cannot_become_active_markup(self):
         payload = '<img src="file:///private"><a href="https://example.invalid">raw</a>'

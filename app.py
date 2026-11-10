@@ -731,13 +731,12 @@ class Window(QMainWindow):
         contents = QWidget()
         self.cards = QVBoxLayout(contents)
         self.cards.setContentsMargins(0, 0, 8, 0)
-        self.cards.setSpacing(10)
+        self.cards.setSpacing(16)
         scroll.setWidget(contents)
         split.addWidget(scroll)
         detail, d = card()
+        self.detail_layout = d
         detail.setMinimumWidth(290)
-        d.setContentsMargins(18, 18, 18, 16)
-        d.setSpacing(12)
         self.detail = SafeTextBrowser()
         self.detail.document().setDocumentMargin(4)
         self.detail.document().setDefaultStyleSheet(DOCUMENT_STYLE)
@@ -797,6 +796,8 @@ class Window(QMainWindow):
     def update_detail_actions(self):
         if hasattr(self, 'more_rules_action'):
             compact = self.height() < 760
+            self.detail_layout.setContentsMargins(18, 14 if compact else 18, 18, 12 if compact else 16)
+            self.detail_layout.setSpacing(8 if compact else 12)
             self.star_button.setVisible(True)
             self.delete_button.setVisible(True)
             for button in (self.star_button, self.delete_button):

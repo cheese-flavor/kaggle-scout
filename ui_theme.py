@@ -73,12 +73,12 @@ QLabel#deadline {background:#def5ff; color:#007da9; border-radius:14px; padding:
 QLabel#profilePill {font-size:16px;background:#edf1f7; border:1px solid #dce3ed; border-radius:19px; padding:10px 16px; font-weight:600;}
 QFrame#card {background:#ffffff; border:1px solid #e3e9f1; border-radius:20px;}
 QFrame#hero {background:#eaf9ff; border:1px solid #bfeafa; border-radius:20px;}
-QFrame#competitionCard {background:transparent; border:1px solid transparent; border-bottom:1px solid #e6ebf3; border-radius:0px;}
-QFrame#competitionCard:hover {background:#f0f7fc; border-radius:20px;}
-QFrame#competitionCard[selected="true"] {background:#f0f5ff; border:1px solid #91aede; border-radius:20px;}
+QFrame#competitionCard {background:#ffffff; border:1px solid #e3e9f1; border-radius:16px;}
+QFrame#competitionCard:hover {background:#f0f7fc; border-color:#b7d2e7;}
+QFrame#competitionCard[selected="true"] {background:#f0f5ff; border:1px solid #91aede;}
 QFrame#competitionCard[context="bookmark"][selected="true"] {background:#f5f0fc; border-color:#b599d4;}
 QFrame#competitionCard[context="education"][selected="true"] {background:#eef8f3; border-color:#96bfb2;}
-QFrame#competitionCard:focus {border:2px solid #178ab4; border-radius:20px;}
+QFrame#competitionCard:focus {border:2px solid #178ab4;}
 QPushButton {background:#ffffff; border:1px solid #e0e6ef; border-radius:14px; padding:10px 15px; font-weight:500;}
 QPushButton:hover {background:#eff8fd; border-color:#9edcf2;}
 QPushButton:pressed {background:#def2fc;}
