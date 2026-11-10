@@ -107,3 +107,5 @@ The v0.10.1 packaged and installed executables start, render and exit using isol
 ## v0.10.2 · Competition cards and detail sections
 
 Fixture captures at 1180 × 820 and 960 × 680 show distinct cards with 16px gaps, followed by separate deadline, participant/topic and introduction sections in the detail pane. At minimum height, the introduction heading and fixed action buttons are visible. Scroll the details to read the introduction body and following sections. All 96 tests pass, including overview reading order and minimum-window wrapping. All 92 gallery sources match the archived images.
+
+The v0.10.2 packaged and installed executables start, render and exit using isolated preview data. Both shortcuts target the new version. The user database was backed up and retained its SHA256.

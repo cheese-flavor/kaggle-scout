@@ -1,4 +1,4 @@
-param([string]$Version = '0.10.1')
+param([string]$Version = '0.10.2')
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version' }
 $scoutSource = Join-Path $PSScriptRoot 'dist\KaggleScout'
