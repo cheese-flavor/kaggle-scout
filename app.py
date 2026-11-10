@@ -1,3 +1,4 @@
+import sqlite3
 import copy
 import json
 import os
@@ -411,11 +412,15 @@ class Connect(QDialog):
         self.token.setMaxLength(8192)
         self.token.setPlaceholderText('Kaggle 설정에서 생성한 API token')
         self.token.setEchoMode(QLineEdit.EchoMode.Password)
+        self.token.setInputMethodHints(Qt.InputMethodHint.ImhSensitiveData |
+                                       Qt.InputMethodHint.ImhNoPredictiveText)
         fields.addWidget(self.token)
         fields.addWidget(button('Kaggle API 설정 열기 ↗', lambda: QDesktopServices.openUrl(QUrl('https://www.kaggle.com/settings/api'))))
         fields.addWidget(button('기존 kaggle.json 파일로 연결', self.import_legacy))
         box.addWidget(panel)
-        box.addWidget(label('인증 정보는 Windows 현재 계정으로 암호화하여 이 앱의 data 폴더에 저장합니다.\n다른 PC에서는 다시 연결합니다. 비밀번호나 토큰을 채팅에 보낼 필요가 없습니다.', 'muted', True))
+        self.remember = QCheckBox('이 Windows 계정에 암호화해 저장')
+        box.addWidget(self.remember)
+        box.addWidget(label('선택하면 다음 실행 때 자동 연결됩니다. 선택하지 않으면 이번 실행 동안만 연결됩니다.', 'muted', True))
         self.status = label('연결을 확인한 다음 프로필 설정으로 이동합니다.', 'muted', True)
         box.addWidget(self.status)
         self.submit = button('연결 확인하고 시작하기 →', self.connect_token, True)
@@ -443,20 +448,38 @@ class Connect(QDialog):
     def verify(self, credentials):
         if self.job and self.job.isRunning():
             return
+        try:
+            credentials = validate_credentials(credentials)
+        except ValueError:
+            self.status.setText('Kaggle API 토큰 또는 인증 파일 형식을 확인하세요.')
+            return
+        remember = self.remember.isChecked()
         self.submit.setEnabled(False)
+        self.remember.setEnabled(False)
+        self.token.clear()
         self.status.setText('Kaggle 연결 확인 중…')
-        self.job = Job(lambda: Kaggle(credentials).call('ListCompetitions', {'pageSize': 1}), self)
-        def success(_):
+
+        def check():
+            with Kaggle(credentials) as api:
+                api.call('ListCompetitions', {'pageSize': 1})
+            return credentials
+
+        self.job = Job(check, self)
+        def success(verified):
             try:
-                self.store.save_credentials(credentials)
-                self.credentials = credentials
-                self.token.clear()
+                if remember:
+                    self.store.save_credentials(verified)
+                else:
+                    self.store.clear_credentials()
+                self.credentials = verified
                 self.accept()
-            except RuntimeError as e:
-                fail(str(e))
+            except (RuntimeError, sqlite3.Error):
+                fail('로컬 인증 저장소를 업데이트하지 못했습니다. 다시 시도하세요.')
+
         def fail(text):
             self.status.setText(text)
             self.submit.setEnabled(True)
+            self.remember.setEnabled(True)
         self.job.done.connect(success)
         self.job.failed.connect(fail)
         self.job.start()
@@ -623,7 +646,7 @@ class Window(QMainWindow):
         dlg = Connect(self.store, self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self.credentials = dlg.credentials
-            self.connection_label.setText('Kaggle 연결됨 · Windows 암호화 저장')
+            self.connection_label.setText('Kaggle 연결됨 · ' + ('Windows 암호화 저장' if dlg.remember.isChecked() else '이번 실행 동안만'))
             if first:
                 self.await_profile = True
                 self.navigate(3)
@@ -1127,7 +1150,8 @@ class Window(QMainWindow):
         self.status.setText('Kaggle 대회 목록을 확인하고 있습니다…')
         profile = copy.deepcopy(self.store.profile())
         def task():
-            items = Kaggle(self.credentials).collect()
+            with Kaggle(self.credentials) as api:
+                items = api.collect()
             # Preserve previously fetched rules when the list API omits them.
             previous = {r['ref']: json.loads(r['body']) for r in self.store.rows(include_deleted=True)}
             for item in items:
@@ -1194,7 +1218,11 @@ class Window(QMainWindow):
             return
         ref = self.selected
         self.status.setText('설명·규칙을 추가 조회합니다. 대회 권한에 따라 제공되지 않을 수 있습니다…')
-        self.job = Job(lambda: Kaggle(self.credentials).pages(ref), self)
+        def fetch_pages():
+            with Kaggle(self.credentials) as api:
+                return api.pages(ref)
+
+        self.job = Job(fetch_pages, self)
         def done(pages):
             rows = self.store.rows()
             row = next((r for r in rows if r['ref'] == ref), None)
@@ -1527,10 +1555,14 @@ class Window(QMainWindow):
         if self.busy():
             self.connection_label.setText('현재 조회가 끝난 뒤 연결을 해제할 수 있습니다.')
             return
-        answer = QMessageBox.question(self, 'Kaggle 연결 해제', '이 PC에 저장한 인증 정보를 삭제할까요?\n관심 대회와 수집 기록은 유지됩니다.', QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        answer = QMessageBox.question(self, 'Kaggle 연결 해제', '이 PC에서 Kaggle 연결을 해제할까요?\n계정에서 토큰을 폐기하려면 Kaggle API 설정을 사용하세요.', QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if answer != QMessageBox.StandardButton.Yes:
             return
-        self.store.clear_credentials()
+        try:
+            self.store.clear_credentials()
+        except sqlite3.Error:
+            self.connection_label.setText('저장된 인증 정보를 삭제하지 못했습니다. 다시 시도하세요.')
+            return
         self.credentials = None
         self.connection_label.setText('연결이 해제되었습니다.')
         self.status.setText('Kaggle 연결 대기')

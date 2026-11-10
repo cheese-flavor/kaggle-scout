@@ -91,6 +91,11 @@ def validate_credentials(value):
     if any(not isinstance(value.get(k), str) or not value[k] or len(value[k]) > 8192 or
            any(ord(c) < 32 or ord(c) == 127 for c in value[k]) for k in fields):
         raise ValueError('인증 값 오류')
+    if fields == ['token']:
+        if not re.fullmatch(r'[\x21-\x7e]+', value['token']):
+            raise ValueError('토큰은 공백 없는 ASCII 문자열이어야 합니다.')
+    elif ':' in value['username'] or any(ord(c) > 255 for key in fields for c in value[key]):
+        raise ValueError('이전 방식의 Kaggle 인증 값 오류')
     return {key: value[key] for key in fields}
 
 def detect_audience(text):
@@ -301,12 +306,20 @@ def protect(raw, decrypt=False):
     outgoing = Blob()
     dll = ctypes.windll.crypt32
     fn = dll.CryptUnprotectData if decrypt else dll.CryptProtectData
-    if not fn(ctypes.byref(incoming), None, None, None, None, 1, ctypes.byref(outgoing)):
-        raise RuntimeError('Windows 계정 암호화에 실패했습니다. 이 PC에서 다시 연결하세요.')
+    local_free = ctypes.windll.kernel32.LocalFree
+    local_free.argtypes = (ctypes.c_void_p,)
+    local_free.restype = ctypes.c_void_p
     try:
+        # CRYPTPROTECT_UI_FORBIDDEN; without LOCAL_MACHINE this is user-scoped.
+        if not fn(ctypes.byref(incoming), None, None, None, None, 1, ctypes.byref(outgoing)):
+            raise RuntimeError('Windows 계정 암호화에 실패했습니다. 이 PC에서 다시 연결하세요.')
         return ctypes.string_at(outgoing.data, outgoing.size)
     finally:
-        ctypes.windll.kernel32.LocalFree(ctypes.cast(outgoing.data, ctypes.c_void_p))
+        ctypes.memset(buffer, 0, ctypes.sizeof(buffer))
+        if outgoing.data:
+            if decrypt:
+                ctypes.memset(outgoing.data, 0, outgoing.size)
+            local_free(outgoing.data)
 
 class Store:
     def __init__(self, folder):
@@ -362,7 +375,10 @@ class Store:
 
     def save_credentials(self, credentials):
         value = validate_credentials(credentials)
-        self.set('credentials', base64.b64encode(protect(json.dumps(value).encode())).decode())
+        encrypted = base64.b64encode(protect(json.dumps(value).encode())).decode()
+        with self.connect() as con:
+            con.execute('PRAGMA secure_delete=ON')
+            con.execute('INSERT OR REPLACE INTO meta VALUES(?,?)', ('credentials', json.dumps(encrypted)))
 
     def credentials(self):
         try:
@@ -525,6 +541,14 @@ class Kaggle:
             self.session.headers['Authorization'] = 'Bearer ' + credentials['token']
         else:
             self.session.auth = (credentials['username'], credentials['key'])
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.session.headers.pop('Authorization', None)
+        self.session.auth = None
+        self.session.close()
 
     def call(self, method, body):
         if method not in ('ListCompetitions', 'ListCompetitionPages'):

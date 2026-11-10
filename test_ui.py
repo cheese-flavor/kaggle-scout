@@ -40,12 +40,26 @@ class UITests(unittest.TestCase):
 
     def test_successful_onboarding_saves_only_encrypted_credential(self):
         dialog = Connect(self.store, self.window)
+        dialog.remember.setChecked(True)
         with patch.object(Kaggle, 'call', return_value={'competitions': []}):
             dialog.verify({'token': 'ui-fixture-not-a-real-token'})
             self.wait_job(dialog)
         self.assertEqual(dialog.result(), 1)
         self.assertEqual(self.store.credentials()['token'], 'ui-fixture-not-a-real-token')
         self.assertNotIn('ui-fixture-not-a-real-token', self.store.get('credentials'))
+
+    def test_session_connection_does_not_leave_old_or_new_credential_on_disk(self):
+        self.store.save_credentials({'token': 'previous-fixture'})
+        dialog = Connect(self.store, self.window)
+        self.assertFalse(dialog.remember.isChecked())
+        dialog.token.setText('session-fixture')
+        with patch.object(Kaggle, 'call', return_value={'competitions': []}):
+            dialog.connect_token()
+            self.assertFalse(dialog.token.text())
+            self.wait_job(dialog)
+        self.assertEqual(dialog.result(), 1)
+        self.assertEqual(dialog.credentials, {'token': 'session-fixture'})
+        self.assertIsNone(Store(self.tmp.name).credentials())
 
     def test_failed_reconnection_preserves_existing_credential(self):
         self.store.save_credentials({'token': 'original-fixture'})
