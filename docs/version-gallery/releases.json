@@ -104,5 +104,13 @@
       "알림 종류, 시각·표시 상태, 변경 값을 나눠 읽을 수 있습니다. [알림 기록](v0.10.1/notification-history-v0101.png)",
       "알림 설정에서 종류와 수신 시간을 분리하고 관련 안내를 짧게 나눴습니다. [알림 설정](v0.10.1/notifications-v0101.png)"
     ]
+  },
+  {
+    "version": "v0.10.2",
+    "image": "v0.10.2/dashboard-v0102.png",
+    "changes": [
+      "대회 카드 사이에 16px 여백을 두고 개별 테두리로 항목을 구분했습니다. [관심 목록](v0.10.2/bookmarks-v0102.png)",
+      "상세 상단은 마감 강조 영역, 참가 대상·연관 분야, 대회 소개로 나눴습니다. [상세 본문](v0.10.2/detail-information-v0102.png) · [최소 창](v0.10.2/education-small-v0102.png)"
+    ]
   }
 ]

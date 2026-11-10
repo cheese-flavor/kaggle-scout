@@ -4,6 +4,15 @@
 
 최신 변경부터 보여줍니다. 각 버전의 전체 원본은 아래 **원본 화면 보관함**에 그대로 남깁니다.
 
+## v0.10.1 → v0.10.2
+
+| 이전 · v0.10.1 | 이후 · v0.10.2 |
+|---|---|
+| [![이전 화면](v0.10.1/dashboard-v0101.png)](v0.10.1/dashboard-v0101.png) | [![이후 화면](v0.10.2/dashboard-v0102.png)](v0.10.2/dashboard-v0102.png) |
+
+- 대회 카드 사이에 16px 여백을 두고 개별 테두리로 항목을 구분했습니다. [관심 목록](v0.10.2/bookmarks-v0102.png)
+- 상세 상단은 마감 강조 영역, 참가 대상·연관 분야, 대회 소개로 나눴습니다. [상세 본문](v0.10.2/detail-information-v0102.png) · [최소 창](v0.10.2/education-small-v0102.png)
+
 ## v0.10.0 → v0.10.1
 
 | 이전 · v0.10.0 | 이후 · v0.10.1 |
@@ -337,6 +346,35 @@
 ![v0.10.1 trash-v0101](v0.10.1/trash-v0101.png)
 
 ![v0.10.1 tray-menu-v0101](v0.10.1/tray-menu-v0101.png)
+
+</details>
+
+<details>
+<summary>v0.10.2 전체 화면</summary>
+
+![v0.10.2 bookmarks-v0102](v0.10.2/bookmarks-v0102.png)
+
+![v0.10.2 collection-settings-v0102](v0.10.2/collection-settings-v0102.png)
+
+![v0.10.2 dashboard-v0102](v0.10.2/dashboard-v0102.png)
+
+![v0.10.2 deadline-colors-v0102](v0.10.2/deadline-colors-v0102.png)
+
+![v0.10.2 detail-information-v0102](v0.10.2/detail-information-v0102.png)
+
+![v0.10.2 education-small-v0102](v0.10.2/education-small-v0102.png)
+
+![v0.10.2 education-v0102](v0.10.2/education-v0102.png)
+
+![v0.10.2 notification-history-v0102](v0.10.2/notification-history-v0102.png)
+
+![v0.10.2 notifications-v0102](v0.10.2/notifications-v0102.png)
+
+![v0.10.2 profile-settings-v0102](v0.10.2/profile-settings-v0102.png)
+
+![v0.10.2 trash-v0102](v0.10.2/trash-v0102.png)
+
+![v0.10.2 tray-menu-v0102](v0.10.2/tray-menu-v0102.png)
 
 </details>
 

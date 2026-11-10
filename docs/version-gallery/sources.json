@@ -478,5 +478,77 @@
     "source": "v0.10.1:docs/tray-menu-v0101.png",
     "image": "v0.10.1/tray-menu-v0101.png",
     "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/bookmarks-v0102.png",
+    "image": "v0.10.2/bookmarks-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/collection-settings-v0102.png",
+    "image": "v0.10.2/collection-settings-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/dashboard-v0102.png",
+    "image": "v0.10.2/dashboard-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/deadline-colors-v0102.png",
+    "image": "v0.10.2/deadline-colors-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/detail-information-v0102.png",
+    "image": "v0.10.2/detail-information-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/education-small-v0102.png",
+    "image": "v0.10.2/education-small-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/education-v0102.png",
+    "image": "v0.10.2/education-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/notification-history-v0102.png",
+    "image": "v0.10.2/notification-history-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/notifications-v0102.png",
+    "image": "v0.10.2/notifications-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/profile-settings-v0102.png",
+    "image": "v0.10.2/profile-settings-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/trash-v0102.png",
+    "image": "v0.10.2/trash-v0102.png",
+    "data": "illustrative fixtures"
+  },
+  {
+    "version": "v0.10.2",
+    "source": "v0.10.2:docs/tray-menu-v0102.png",
+    "image": "v0.10.2/tray-menu-v0102.png",
+    "data": "illustrative fixtures"
   }
 ]

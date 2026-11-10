@@ -103,3 +103,7 @@ Fresh v0.10.0 fixture captures showed tight date and status text, dense alert ro
 All 96 regression tests pass. The new minimum-window test covers long Korean and English text and unbroken tokens in details and history, with scrolling and the primary action available. The gallery retains 80 source-verified fixture images.
 
 The v0.10.1 packaged and installed executables start, render and exit using isolated preview data. Both shortcuts target the new version. The user database was backed up and retained its SHA256.
+
+## v0.10.2 · Competition cards and detail sections
+
+Fixture captures at 1180 × 820 and 960 × 680 show distinct cards with 16px gaps, followed by separate deadline, participant/topic and introduction sections in the detail pane. At minimum height, the introduction heading and fixed action buttons are visible. Scroll the details to read the introduction body and following sections. All 96 tests pass, including overview reading order and minimum-window wrapping. All 92 gallery sources match the archived images.
