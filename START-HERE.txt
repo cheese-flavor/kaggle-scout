@@ -1,4 +1,4 @@
-Kaggle Scout v0.10.2
+Kaggle Scout v0.10.3
 
 1. 바탕화면의 Kaggle Scout 바로가기 또는 run.bat를 실행합니다.
    실행 파일: dist\KaggleScout\KaggleScout.exe
@@ -20,7 +20,8 @@ PC가 꺼져 있거나 앱이 종료되어 있으면 확인하지 않습니다.
 
 설치 파일은 AppData\Local\Programs\KaggleScout에 저장됩니다.
 인증 정보와 개인 기록은 AppData\Local\KaggleScout에 분리하여 저장됩니다.
-인증은 Windows 현재 사용자 계정으로 암호화됩니다.
+인증은 기본으로 이번 실행 동안 유지됩니다. 저장을 선택하면 Windows 현재 사용자 계정으로 암호화합니다.
+프로그램 MIT와 Qt/PySide6 LGPLv3 안내는 LICENSE, THIRD-PARTY.md와 licenses 폴더에서 확인할 수 있습니다.
 
 실제 계정 토큰 연결 후 수집 확인은 최초 실행 시 필요합니다.
 선택 설치: install.ps1을 실행하면 바탕화면과 시작 메뉴 바로가기가 생성됩니다.

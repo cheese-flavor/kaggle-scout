@@ -1,8 +1,8 @@
 # Kaggle Scout
 
-현재 버전: **0.10.2** · Windows 10/11 개인용 Kaggle 대회 알림 앱. 생성형 AI API를 사용하지 않습니다. Kaggle과 독립적인 비공식 프로젝트입니다.
+현재 버전: **0.10.3** · Windows 10/11 개인용 Kaggle 대회 알림 앱. 생성형 AI API를 사용하지 않습니다. Kaggle과 독립적인 비공식 프로젝트입니다.
 
-0.10.2는 대회 카드 사이에 여백을 두고, 상세 상단의 마감·참가 대상·분야·소개를 구분해 표시합니다. 향후 개선 우선순위는 [ROADMAP.md](ROADMAP.md)에 정리했습니다.
+0.10.3은 Kaggle 인증의 저장을 선택 사항으로 바꾸고, Windows 배포본에 Qt 라이선스와 대응 소스 안내를 포함합니다. 향후 개선 우선순위는 [ROADMAP.md](ROADMAP.md)에 정리했습니다.
 
 ![가상 데이터로 보는 현재 화면](docs/dashboard-v0102.png)
 
@@ -14,7 +14,7 @@
 
 ## 설치 위치
 
-- 프로그램: `%LOCALAPPDATA%\Programs\KaggleScout\versions\0.10.2\KaggleScout.exe`
+- 프로그램: `%LOCALAPPDATA%\Programs\KaggleScout\versions\0.10.3\KaggleScout.exe`
 - 설정·인증·대회·알림 기록: `%LOCALAPPDATA%\KaggleScout\scout.sqlite3`
 - 바탕화면과 시작 메뉴: 실행 바로가기
 - 개발 소스: 설치 폴더와 별도로 관리하는 Git 저장소
@@ -222,6 +222,7 @@ Pretendard 1.3.9 정적 폰트 4종과 SIL 라이선스를 포함합니다. [공
 | 2026-11-10 | 공개 배포본 점검 | 공개 ZIP 13개 해시·목록·문서 및 최신 실행 파일의 개인정보와 초기 실행 검사 | 관련 테스트 24개 통과. 서명 상태와 Qt 라이선스 고지 누락은 SECURITY.md에 기록 |
 | 2026-11-10 | 0.10.3 · Kaggle 인증 보호 | 기본 세션 연결과 선택형 Windows 암호화 저장, 입력·인증 버퍼 정리, 인증 교체 시 기존 암호문 정리 | 회귀 테스트 97개 통과. 세션 재연결 후 저장 인증 삭제, 실패 시 기존 인증 유지 확인 |
 | 2026-11-10 | 0.10.3 · 배포 라이선스 | MIT, Qt LGPLv3/GPLv3, 외부 고지와 대응 소스 안내 포함. Qt/PySide6 Essentials 6.11.3 사용 및 미사용 플러그인 제거 | Qt 공식 소스 세 개의 SHA-256 확인. 별도 라이브러리 교체가 가능한 패키지 구성 검증 |
+| 2026-11-10 | 0.10.3 · 배포·설치 | Windows ZIP과 Qt 대응 소스 세 개 공개, 실행 파일과 바로가기 갱신 | Windows 11 격리 실행·종료와 사용자 DB SHA-256 유지 확인. 새 작업 커밋과 태그는 GitHub noreply 사용 |
 
 ### 0.2.0 화면 설정
 
