@@ -1,4 +1,4 @@
-param([string]$Version = '0.10.2')
+param([string]$Version = '0.10.3')
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Use a semantic version such as 0.1.0' }
@@ -12,6 +12,8 @@ New-Item -ItemType Directory -Path $scoutApp, $scoutReleases -Force | Out-Null
 # Copy an explicit allowlist so credentials, data, and test stores cannot be packaged.
 Copy-Item -LiteralPath $scoutExe -Destination $scoutApp
 Copy-Item -LiteralPath $scoutRuntime -Destination $scoutApp -Recurse
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'dist\KaggleScout\licenses') -Destination $scoutApp -Recurse
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'LICENSE'), (Join-Path $PSScriptRoot 'THIRD-PARTY.md') -Destination $scoutApp
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination $scoutApp
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'SECURITY.md') -Destination $scoutApp
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install.ps1') -Destination $scoutApp
@@ -26,7 +28,8 @@ Kaggle Scout - Windows portable edition
 
 Keep the _internal folder next to KaggleScout.exe.
 This application does not call generative AI APIs.
-Credentials are encrypted for the current Windows user; reconnect on a new PC.
+The default connection lasts for this session. Opt in to encrypted storage to reconnect automatically.
+Kaggle Scout uses Qt/PySide6 under LGPLv3. See LICENSE, THIRD-PARTY.md and licenses/.
 Settings and history are stored in LocalAppData/KaggleScout, outside the program folder.
 Use KaggleScout.exe --portable only if you want data saved next to the executable.
 The app keeps monitoring in the system tray after closing its window.

@@ -1,4 +1,4 @@
-param([string]$Version = '0.10.2')
+param([string]$Version = '0.10.3')
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version' }
 $scoutSource = Join-Path $PSScriptRoot 'dist\KaggleScout'
@@ -18,7 +18,11 @@ New-Item -ItemType Directory -Force -Path $scoutInstall | Out-Null
 # Only program files are copied. Updates never copy a source data directory over user data.
 Copy-Item -LiteralPath $scoutExeSource -Destination $scoutExe -Force
 Copy-Item -LiteralPath $scoutRuntime -Destination $scoutInstall -Recurse -Force
-foreach ($scoutDoc in @('README.md', 'SECURITY.md', 'START-HERE.txt')) {
+$scoutLicenses = Join-Path $scoutSource 'licenses'
+if (Test-Path -LiteralPath $scoutLicenses) {
+    Copy-Item -LiteralPath $scoutLicenses -Destination $scoutInstall -Recurse -Force
+}
+foreach ($scoutDoc in @('README.md', 'SECURITY.md', 'START-HERE.txt', 'LICENSE', 'THIRD-PARTY.md')) {
     $scoutDocSource = Join-Path $PSScriptRoot $scoutDoc
     if (Test-Path -LiteralPath $scoutDocSource) { Copy-Item -LiteralPath $scoutDocSource -Destination $scoutInstall -Force }
 }
